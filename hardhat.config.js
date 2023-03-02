@@ -19,9 +19,10 @@ module.exports = {
         mnemonic: secret.mnemonic,
       },
       chainId: 42161,
+      blockGasLimit: 100e6,
       forking: {
         url: `https://arb-mainnet.g.alchemy.com/v2/${secret.alchemyKey}`,
-        // blockNumber: 64864170, // <-- edit here
+        // blockNumber: 66102500, // <-- edit here
       },
     },
     mainnet: {
