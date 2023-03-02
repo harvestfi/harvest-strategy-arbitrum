@@ -14,10 +14,10 @@ const IERC20 = artifacts.require("IERC20");
 //const Strategy = artifacts.require("");
 const Strategy = artifacts.require("BalancerStrategyMainnet_wstETH_USDC");
 
-// Developed and tested at blockNumber 64864170
+// Developed and tested at blockNumber 65837850
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Polygon Mainnet Balancer wstETH-USDC", function() {
+describe("Arbitrum Mainnet Balancer wstETH-USDC", function() {
   let accounts;
 
   // external contracts
@@ -82,10 +82,9 @@ describe("Polygon Mainnet Balancer wstETH-USDC", function() {
       await depositVault(farmer1, underlying, vault, farmerBalance);
 
       let hours = 10;
-      let blocksPerHour = 4*3600;
+      let blocksPerHour = 3600;
       let oldSharePrice;
       let newSharePrice;
-      let hint = new BigNumber(1e18)
 
       for (let i = 0; i < hours; i++) {
         console.log("loop ", i);
