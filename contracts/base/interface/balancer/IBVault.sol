@@ -552,4 +552,6 @@ interface IBVault {
         IAsset[] calldata assets,
         FundManagement calldata funds
     ) external returns (int256[] memory assetDeltas);
+
+    function getProtocolFeesCollector() external view returns(address);
 }
