@@ -169,8 +169,10 @@ contract SolidLizardStrategy is BaseUpgradeableStrategy {
       return;
     }
 
-    address token0 = ILizardPair(underlying()).token0();
-    address token1 = ILizardPair(underlying()).token1();
+    address _underlying = underlying();
+
+    address token0 = ILizardPair(_underlying).token0();
+    address token1 = ILizardPair(_underlying).token1();
 
     uint256 toToken0 = remainingRewardBalance.div(2);
     uint256 toToken1 = remainingRewardBalance.sub(toToken0);
@@ -217,7 +219,7 @@ contract SolidLizardStrategy is BaseUpgradeableStrategy {
     ILizardRouter(lizardRouter).addLiquidity(
       token0,
       token1,
-      ILizardPair(underlying()).stable(), 
+      ILizardPair(_underlying).stable(), 
       token0Amount,
       token1Amount,
       1,
