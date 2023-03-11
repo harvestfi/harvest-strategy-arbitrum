@@ -11,10 +11,11 @@ module.exports = {
   "ProfitShare": "0x5F11EfDF4422B548007Cae9919b0b38c35fa6BE7",
   "Reader": "0xD5E42f45CC4ef59dE83999FAAd1bef25A7abf657",
   "Incentives": {
-    "GlobalIncentivesExecutor": "0xE67a7c4137cc4fe7B9C3A5aDe34E7039726DAaf4",
+    "GlobalIncentivesExecutor": "0x9d052Ab5344F6D0a5dcf685D42906f48E6F2beaF",
     "GlobalIncentivesHelper": "0x8F0d40c95047c6B09f08905C110d002E65e96C7d",
     "NotifyHelperGeneric": "0xC0cE53f755feAe93Fd219b2Cd0F58a4Fd0d535Dd",
     "NotifyHelperStateful": "0x99AFf7327CEb88fE408d1fB93dc3150fEa5f9A2A",
+    "ViewerNotifyHelperStateful": "0xb93280253E93d9CF01FbE500981792E1c577607d",
   },
   "Factory": {
     "VaultFactory": "0x61d568C11321d12E05959203f00F19E4bd628122",
