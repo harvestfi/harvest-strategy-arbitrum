@@ -49,8 +49,9 @@ contract NoopStrategyUpgradeable is BaseUpgradeableStrategy {
   *   Withdraws all the asset to the vault
   */
   function withdrawAllToVault() external restricted {
-    if (IERC20(underlying()).balanceOf(address(this)) > 0) {
-      IERC20(underlying()).safeTransfer(address(vault()), IERC20(underlying()).balanceOf(address(this)));
+    address _underlying = underlying();
+    if (IERC20(_underlying).balanceOf(address(this)) > 0) {
+      IERC20(_underlying).safeTransfer(address(vault()), IERC20(_underlying).balanceOf(address(this)));
     }
   }
 
@@ -58,10 +59,11 @@ contract NoopStrategyUpgradeable is BaseUpgradeableStrategy {
   * Cashes some amount out and withdraws to the vault
   */
   function withdrawToVault(uint256 amount) external restricted {
-    require(IERC20(underlying()).balanceOf(address(this)) >= amount,
+    address _underlying = underlying();
+    require(IERC20(_underlying).balanceOf(address(this)) >= amount,
       "insufficient balance for the withdrawal");
     if (amount > 0) {
-      IERC20(underlying()).safeTransfer(address(vault()), amount);
+      IERC20(_underlying).safeTransfer(address(vault()), amount);
     }
   }
 
