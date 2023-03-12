@@ -44,6 +44,8 @@ interface IController {
 
     function codeWhiteList(address _target) external view returns (bool);
 
+    function addToWhitelist(address _target) external;
+
     function addCodeToWhitelist(address _target) external;
 
     function store() external view returns (address);

@@ -4,7 +4,6 @@ pragma solidity 0.6.12;
 import "./interface/IERC4626.sol";
 import "./VaultV1.sol";
 
-
 contract VaultV2 is IERC4626, VaultV1 {
 
     /// By default, the constant `10` is a uint8. This implicitly converts it to `uint256`
@@ -19,7 +18,7 @@ contract VaultV2 is IERC4626, VaultV1 {
     }
 
     function assetsPerShare() public view override returns (uint256) {
-        return _sharesToAssets(TEN ** decimals());
+        return convertToAssets(TEN ** decimals());
     }
 
     function assetsOf(address _depositor) public view override returns (uint256) {
@@ -31,11 +30,11 @@ contract VaultV2 is IERC4626, VaultV1 {
     }
 
     function previewDeposit(uint256 _assets) public view override returns (uint256) {
-        return _assetsToShares(_assets);
+        return convertToShares(_assets);
     }
 
     function deposit(uint256 _assets, address _receiver) public override nonReentrant defense returns (uint256) {
-        uint shares = _assetsToShares(_assets);
+        uint shares = convertToShares(_assets);
         _deposit(_assets, msg.sender, _receiver);
         return shares;
     }
@@ -45,11 +44,11 @@ contract VaultV2 is IERC4626, VaultV1 {
     }
 
     function previewMint(uint256 _shares) public view override returns (uint256) {
-        return _sharesToAssets(_shares);
+        return convertToAssets(_shares);
     }
 
     function mint(uint256 _shares, address _receiver) public override nonReentrant defense returns (uint256) {
-        uint assets = _sharesToAssets(_shares);
+        uint assets = convertToAssets(_shares);
         _deposit(assets, msg.sender, _receiver);
         return assets;
     }
@@ -59,7 +58,7 @@ contract VaultV2 is IERC4626, VaultV1 {
     }
 
     function previewWithdraw(uint256 _assets) public view override returns (uint256) {
-        return _assetsToShares(_assets);
+        return convertToShares(_assets);
     }
 
     function withdraw(
@@ -71,7 +70,7 @@ contract VaultV2 is IERC4626, VaultV1 {
     nonReentrant
     defense
     returns (uint256) {
-        uint256 shares = _assetsToShares(_assets);
+        uint256 shares = convertToShares(_assets);
         _withdraw(shares, _receiver, _owner);
         return shares;
     }
@@ -81,7 +80,7 @@ contract VaultV2 is IERC4626, VaultV1 {
     }
 
     function previewRedeem(uint256 _shares) public view override returns (uint256) {
-        return _sharesToAssets(_shares);
+        return convertToAssets(_shares);
     }
 
     function redeem(
@@ -93,20 +92,20 @@ contract VaultV2 is IERC4626, VaultV1 {
     nonReentrant
     defense
     returns (uint256) {
-        uint256 assets = _sharesToAssets(_shares);
+        uint256 assets = convertToAssets(_shares);
         _withdraw(_shares, _receiver, _owner);
         return assets;
     }
 
-    // ========================= Internal Functions =========================
+    // ========================= Conversion Functions =========================
 
-    function _sharesToAssets(uint256 _shares) internal view returns (uint256) {
+    function convertToAssets(uint256 _shares) public view returns (uint256) {
         return totalAssets() == 0 || totalSupply() == 0
             ? _shares * (TEN ** ERC20Upgradeable(underlying()).decimals()) / (TEN ** decimals())
             : _shares * totalAssets() / totalSupply();
     }
 
-    function _assetsToShares(uint256 _assets) internal view returns (uint256) {
+    function convertToShares(uint256 _assets) public view returns (uint256) {
         return totalAssets() == 0 || totalSupply() == 0
             ? _assets * (TEN ** decimals()) / (TEN ** ERC20Upgradeable(underlying()).decimals())
             : _assets * totalSupply() / totalAssets();
