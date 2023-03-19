@@ -24,7 +24,7 @@ contract PoisonStrategyHodlMainnet_pGOLD is PoisonStrategyHodl {
       masterChef,
       0,
       iPoison,
-      address(0),
+      address(0x9F65E93209EFAe76a716ffF7d40089d2aA1b9ad1),  //iPoison vault
       address(0)
     );
     reward2WETH[poison] = [poison, usdc, weth];

@@ -131,7 +131,7 @@ describe("Mainnet Jarvis pSLVR HODL in iPoison", function() {
         newPotPoolBalance = new BigNumber(await hodlVault.balanceOf(potPool.address));
 
         hodlPrice = new BigNumber(0.556480).times(D18);
-        underlyingPrice = new BigNumber(1858.14).times(D18);
+        underlyingPrice = new BigNumber(21.55).times(D18);
         console.log("Hodl price:", hodlPrice.toFixed()/D18.toFixed());
         console.log("Underlying price:", underlyingPrice.toFixed()/D18.toFixed());
 

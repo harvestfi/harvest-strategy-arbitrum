@@ -24,7 +24,7 @@ describe("Arbitrum Mainnet Poison pTSLA-USDC", function() {
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x0566D52171036546dE97D797dA1EE35088eA182E";
+  let underlyingWhale = "0x19aA556940b904d955A689dE9300A9828C837971";
 
   // parties in the protocol
   let governance;
