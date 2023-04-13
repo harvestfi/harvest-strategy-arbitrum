@@ -14,7 +14,7 @@ const IERC20 = artifacts.require("IERC20");
 //const Strategy = artifacts.require("");
 const Strategy = artifacts.require("ConvexStrategyMainnet_USDT_WBTC_WETH");
 
-// Developed and tested at blockNumber 66102500
+// Developed and tested at blockNumber 77932350
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
 describe("Arbitrum Mainnet Convex USDT-WBTC-WETH", function() {
@@ -24,7 +24,7 @@ describe("Arbitrum Mainnet Convex USDT-WBTC-WETH", function() {
   let underlying;
 
   // external setup
-  let underlyingWhale = "0xb0087c6D1b3c0a54d9dBD34F1eA0a7F7Ab1E57CF";
+  let underlyingWhale = "0xb67620E8C9E19592b616942F895153e2dcF9CcB6";
 
   // parties in the protocol
   let governance;
