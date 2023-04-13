@@ -230,10 +230,6 @@ contract Controller is Governable {
         hardWorkers[_worker] = false;
     }
 
-    function withdrawAll(address _vault) external {
-        IVault(_vault).withdrawAll();
-    }
-
     // transfers token in the controller contract to the governance
     function salvage(address _token, uint256 _amount) external onlyGovernance {
         IERC20(_token).safeTransfer(governance(), _amount);
