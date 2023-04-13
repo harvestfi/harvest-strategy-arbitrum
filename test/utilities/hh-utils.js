@@ -180,7 +180,7 @@ async function setupCoreProtocol(config) {
     strategy = await config.strategyArtifact.at(await vault.strategy());
     console.log("Strategy upgrade completed.");
   } else {
-    await vault.setStrategy(strategy.address);
+    await vault.setStrategy(strategy.address, {from: config.governance});
   }
   return [controller, vault, strategy, rewardPool];
 }
