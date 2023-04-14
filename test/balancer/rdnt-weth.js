@@ -14,7 +14,7 @@ const IERC20 = artifacts.require("IERC20");
 //const Strategy = artifacts.require("");
 const Strategy = artifacts.require("BalancerStrategyMainnet_RDNT_ETH");
 
-// Developed and tested at blockNumber 76678900
+// Developed and tested at blockNumber 79976650
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
 describe("Arbitrum Mainnet Balancer RDNT-ETH", function() {
