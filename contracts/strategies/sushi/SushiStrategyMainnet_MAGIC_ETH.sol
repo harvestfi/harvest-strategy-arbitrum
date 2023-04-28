@@ -13,7 +13,7 @@ contract SushiStrategyMainnet_MAGIC_ETH is SushiStrategy {
   ) public initializer {
     address underlying = address(0xB7E50106A5bd3Cf21AF210A755F9C8740890A8c9);
     address magic = address(0x539bdE0d7Dbd336b79148AA742883198BBF60342);
-    address sushi = address(0x13Ad51ed4F1B7e9Dc168d8a00cB3f4dDD85EfA60);
+    address sushi = address(0xd4d42F0b6DEF4CE0383636770eF773390d85c61A);
     address miniChef = address(0xF4d73326C13a4Fc5FD7A064217e12780e9Bd62c3);
     SushiStrategy.initializeBaseStrategy(
       _storage,
