@@ -13,7 +13,7 @@ contract SushiStrategyMainnet_DPX_ETH is SushiStrategy {
   ) public initializer {
     address underlying = address(0x0C1Cf6883efA1B496B01f654E247B9b419873054);
     address dpx = address(0x6C2C06790b3E3E3c38e12Ee22F8183b37a13EE55);
-    address sushi = address(0x13Ad51ed4F1B7e9Dc168d8a00cB3f4dDD85EfA60);
+    address sushi = address(0xd4d42F0b6DEF4CE0383636770eF773390d85c61A);
     address miniChef = address(0xF4d73326C13a4Fc5FD7A064217e12780e9Bd62c3);
     SushiStrategy.initializeBaseStrategy(
       _storage,
