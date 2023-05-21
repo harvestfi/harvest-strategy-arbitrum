@@ -12,19 +12,19 @@ const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("ConvexStrategyMainnet_USDC_USDT");
+const Strategy = artifacts.require("SolidLizardStrategyMainnet_ARB_USDC");
 
-// Developed and tested at blockNumber 77932350
+// Developed and tested at blockNumber 73184000
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Arbitrum Mainnet Convex USDC-USDT", function() {
+describe("Arbitrum Mainnet SolidLizard ARB-USDC", function () {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x7b22e5dbDBA5151635f130E9E0114e4FEC35Aaf7";
+  let underlyingWhale = "0x5929cC4D10b6a1acc5bF5D221889f10251C628A1";
 
   // parties in the protocol
   let governance;
@@ -39,19 +39,21 @@ describe("Arbitrum Mainnet Convex USDC-USDT", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0x7f90122BF0700F9E7e1F688fe926940E8839F353");
+    underlying = await IERC20.at("0x9cB911Cbb270cAE0d132689cE11c2c52aB2DedBC");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
-  async function setupBalance(){
+  async function setupBalance() {
     let etherGiver = accounts[9];
     await send.ether(etherGiver, underlyingWhale, "1" + "000000000000000000");
 
     farmerBalance = await underlying.balanceOf(underlyingWhale);
-    await underlying.transfer(farmer1, farmerBalance, { from: underlyingWhale });
+    await underlying.transfer(farmer1, farmerBalance, {
+      from: underlyingWhale,
+    });
   }
 
-  before(async function() {
+  before(async function () {
     governance = addresses.Governance;
     accounts = await web3.eth.getAccounts();
 
@@ -65,19 +67,19 @@ describe("Arbitrum Mainnet Convex USDC-USDT", function() {
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": null,
-      "strategyArtifact": Strategy,
-      "strategyArtifactIsUpgradable": true,
-      "underlying": underlying,
-      "governance": governance,
+      existingVaultAddress: null,
+      strategyArtifact: Strategy,
+      strategyArtifactIsUpgradable: true,
+      underlying: underlying,
+      governance: governance,
     });
 
     // whale send underlying to farmers
     await setupBalance();
   });
 
-  describe("Happy path", function() {
-    it("Farmer should earn money", async function() {
+  describe("Happy path", function () {
+    it("Farmer should earn money", async function () {
       let farmerOldBalance = new BigNumber(await underlying.balanceOf(farmer1));
       await depositVault(farmer1, underlying, vault, farmerBalance);
 
@@ -95,29 +97,48 @@ describe("Arbitrum Mainnet Convex USDC-USDT", function() {
 
         console.log("old shareprice: ", oldSharePrice.toFixed());
         console.log("new shareprice: ", newSharePrice.toFixed());
-        console.log("growth: ", newSharePrice.toFixed() / oldSharePrice.toFixed());
+        console.log(
+          "growth: ",
+          newSharePrice.toFixed() / oldSharePrice.toFixed()
+        );
 
-        apr = (newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/1565))*365;
-        apy = ((newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/1565))+1)**365;
+        apr =
+          (newSharePrice.toFixed() / oldSharePrice.toFixed() - 1) *
+          (24 / (blocksPerHour / 1565)) *
+          365;
+        apy =
+          ((newSharePrice.toFixed() / oldSharePrice.toFixed() - 1) *
+            (24 / (blocksPerHour / 1565)) +
+            1) **
+          365;
 
-        console.log("instant APR:", apr*100, "%");
-        console.log("instant APY:", (apy-1)*100, "%");
+        console.log("instant APR:", apr * 100, "%");
+        console.log("instant APY:", (apy - 1) * 100, "%");
 
         await Utils.advanceNBlock(blocksPerHour);
       }
-      await vault.withdraw(new BigNumber(await vault.balanceOf(farmer1)).toFixed(), { from: farmer1 });
+      await vault.withdraw(
+        new BigNumber(await vault.balanceOf(farmer1)).toFixed(),
+        { from: farmer1 }
+      );
       let farmerNewBalance = new BigNumber(await underlying.balanceOf(farmer1));
       Utils.assertBNGt(farmerNewBalance, farmerOldBalance);
 
-      apr = (farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/1565))*365;
-      apy = ((farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/1565))+1)**365;
+      apr =
+        (farmerNewBalance.toFixed() / farmerOldBalance.toFixed() - 1) *
+        (24 / ((blocksPerHour * hours) / 1565)) *
+        365;
+      apy =
+        ((farmerNewBalance.toFixed() / farmerOldBalance.toFixed() - 1) *
+          (24 / ((blocksPerHour * hours) / 1565)) +
+          1) **
+        365;
 
       console.log("earned!");
-      console.log("APR:", apr*100, "%");
-      console.log("APY:", (apy-1)*100, "%");
+      console.log("APR:", apr * 100, "%");
+      console.log("APY:", (apy - 1) * 100, "%");
 
-      await strategy.withdrawAllToVault({from:governance}); // making sure can withdraw all for a next switch
-
+      await strategy.withdrawAllToVault({ from: governance }); // making sure can withdraw all for a next switch
     });
   });
 });
