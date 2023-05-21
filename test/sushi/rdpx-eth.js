@@ -12,19 +12,19 @@ const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("ConvexStrategyMainnet_USDC_USDT");
+const Strategy = artifacts.require("SushiStrategyMainnet_RDPX_ETH");
 
-// Developed and tested at blockNumber 77932350
+// Developed and tested at blockNumber 71458000
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Arbitrum Mainnet Convex USDC-USDT", function() {
+describe("Arbitrum Mainnet Sushi RDPX-ETH", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x7b22e5dbDBA5151635f130E9E0114e4FEC35Aaf7";
+  let underlyingWhale = "0x013c7a3C90f3E4642493C235892EF3A8e5738b77";
 
   // parties in the protocol
   let governance;
@@ -39,7 +39,7 @@ describe("Arbitrum Mainnet Convex USDC-USDT", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0x7f90122BF0700F9E7e1F688fe926940E8839F353");
+    underlying = await IERC20.at("0x7418F5A2621E13c05d1EFBd71ec922070794b90a");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 

@@ -12,19 +12,19 @@ const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("ConvexStrategyMainnet_USDC_USDT");
+const Strategy = artifacts.require("BalancerStrategyMainnet_RDNT_ETH");
 
-// Developed and tested at blockNumber 77932350
+// Developed and tested at blockNumber 79976650
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Arbitrum Mainnet Convex USDC-USDT", function() {
+describe("Arbitrum Mainnet Balancer RDNT-ETH", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x7b22e5dbDBA5151635f130E9E0114e4FEC35Aaf7";
+  let underlyingWhale = "0xaebb8FDBD5E52F99630cEBB80D0a1c19892EB4C2";
 
   // parties in the protocol
   let governance;
@@ -39,13 +39,13 @@ describe("Arbitrum Mainnet Convex USDC-USDT", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0x7f90122BF0700F9E7e1F688fe926940E8839F353");
+    underlying = await IERC20.at("0x32dF62dc3aEd2cD6224193052Ce665DC18165841");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
   async function setupBalance(){
     let etherGiver = accounts[9];
-    await send.ether(etherGiver, underlyingWhale, "1" + "000000000000000000");
+    await web3.eth.sendTransaction({ from: etherGiver, to: underlyingWhale, value: 10e18});
 
     farmerBalance = await underlying.balanceOf(underlyingWhale);
     await underlying.transfer(farmer1, farmerBalance, { from: underlyingWhale });
@@ -61,7 +61,7 @@ describe("Arbitrum Mainnet Convex USDC-USDT", function() {
     await impersonates([governance, underlyingWhale]);
 
     let etherGiver = accounts[9];
-    await send.ether(etherGiver, governance, "100" + "000000000000000000");
+    await web3.eth.sendTransaction({ from: etherGiver, to: governance, value: 10e18});
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({

@@ -2,6 +2,7 @@ require("@nomiclabs/hardhat-etherscan");
 require("@nomiclabs/hardhat-truffle5");
 require("@nomiclabs/hardhat-web3");
 require("@nomiclabs/hardhat-ethers");
+require('hardhat-contract-sizer');
 
 const secret = require('./dev-keys.json');
 
@@ -22,7 +23,7 @@ module.exports = {
       blockGasLimit: 100e6,
       forking: {
         url: `https://arb-mainnet.g.alchemy.com/v2/${secret.alchemyKey}`,
-        // blockNumber: 66102500, // <-- edit here
+        // blockNumber: 79985280, // <-- edit here
       },
     },
     mainnet: {
@@ -50,5 +51,11 @@ module.exports = {
   },
   etherscan: {
     apiKey: secret.etherscanAPI,
+  },
+  contractSizer: {
+    alphaSort: false,
+    disambiguatePaths: false,
+    runOnCompile: false,
+    strict: false,
   },
 };

@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../interface/IBooster.sol";
 import "../interface/IBaseRewardPool.sol";
-import "../interface/ISwapRouter.sol";
+import "../../../base/interface/uniswap/IUniswapV3Router.sol";
 import "../../../base/interface/curve/ICurveDeposit_2token.sol";
 import "../../../base/interface/curve/ICurveDeposit_3token.sol";
 import "../../../base/interface/curve/ICurveDeposit_3token_meta.sol";
@@ -200,7 +200,7 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
       currentSellToken = currentBuyToken;
     }
 
-    ISwapRouter.ExactInputParams memory param = ISwapRouter.ExactInputParams({
+    IUniswapV3Router.ExactInputParams memory param = IUniswapV3Router.ExactInputParams({
       path: pathWithFee,
       recipient: address(this),
       deadline: block.timestamp,
@@ -208,7 +208,7 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
       amountOutMinimum: minAmountOut
     });
 
-    ISwapRouter(uniV3Router).exactInput(param);
+    IUniswapV3Router(uniV3Router).exactInput(param);
   }
 
   // We assume that all the tradings can be done on Sushiswap
