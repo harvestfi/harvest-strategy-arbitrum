@@ -179,6 +179,10 @@ contract BaseUpgradeableStrategyStorage is ControllableInit {
     return IController(controller()).feeDenominator();
   }
 
+  function universalLiquidator() public view returns (address) {
+    return IController(controller()).universalLiquidator();
+  }
+
   // upgradeability
 
   function _setNextImplementation(address _address) internal {

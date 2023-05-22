@@ -1,6 +1,5 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity 0.6.12;
-pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -10,40 +9,46 @@ import "../../base/interface/camelot/ICamelotRouter.sol";
 import "../../base/interface/camelot/ICamelotPair.sol";
 import "../../base/interface/camelot/INFTPool.sol";
 import "../../base/interface/camelot/INitroPool.sol";
+import "../../base/interface/IVault.sol";
+import "../../base/interface/IPotPool.sol";
+import "../../base/interface/IUniversalLiquidator.sol";
 
-contract CamelotStrategy is BaseUpgradeableStrategy {
+contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
   address public constant camelotRouter = address(0xc873fEcbd354f5A56E00E710B90EF4201db2448d);
-  address public constant weth = address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
   address public constant xGrail = address(0x3CAaE25Ee616f2C8E13C74dA0813402eae3F496b);
+  address public constant iFarm = address(0x9dCA587dc65AC0a043828B0acd946d71eb8D46c1);
   address public constant harvestMSIG = address(0xf3D1A027E858976634F81B7c41B09A05A46EdA21);
-  address public constant uniV3Router = address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
 
   // additional storage slots (on top of BaseUpgradeableStrategy ones) are defined here
   bytes32 internal constant _POS_ID_SLOT = 0x025da88341279feed86c02593d3d75bb35ff95cb72e32ffd093929b008413de5;
   bytes32 internal constant _NFT_POOL_SLOT = 0x828d9a241b00468f203e6001f37c2f3f9b054802b5bfa652f8dee2a0f2d586d9;
   bytes32 internal constant _NITRO_POOL_SLOT = 0x1ee567d62ee6cf3d5c44deeb8b6f34774a4a2d99f55ae3d5f1ca16bee430b005;
+  bytes32 internal constant _XGRAIL_VAULT_SLOT = 0xd445aff5601e22e4f2e49f44eb54e33aa29670745d5241914b5369f65f9d43d0;
+  bytes32 internal constant _POTPOOL_SLOT = 0x7f4b50847e7d7a4da6a6ea36bfb188c77e9f093697337eb9a876744f926dd014;
 
   // this would be reset on each upgrade
-  mapping(address => address[]) public WETH2deposit;
-  mapping(address => address[]) public reward2WETH;
   address[] public rewardTokens;
-  mapping (address => mapping(address => uint24)) public storedPairFee;
 
   constructor() public BaseUpgradeableStrategy() {
     assert(_POS_ID_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.posId")) - 1));
     assert(_NFT_POOL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.nftPool")) - 1));
     assert(_NITRO_POOL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.nitroPool")) - 1));
+    assert(_XGRAIL_VAULT_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.xGrailVault")) - 1));
+    assert(_POTPOOL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.potPool")) - 1));
   }
 
   function initializeBaseStrategy(
     address _storage,
     address _underlying,
     address _vault,
+    address _grail,
     address _nftPool,
-    address _nitroPool
+    address _nitroPool,
+    address _xGrailVault,
+    address _potPool
   ) public initializer {
 
     BaseUpgradeableStrategy.initialize(
@@ -51,7 +56,7 @@ contract CamelotStrategy is BaseUpgradeableStrategy {
       _underlying,
       _vault,
       _nitroPool,
-      weth,
+      _grail,
       harvestMSIG
     );
 
@@ -62,6 +67,8 @@ contract CamelotStrategy is BaseUpgradeableStrategy {
     require(checkNftPool == _nftPool, "NitroPool does not match NFTPool");
     _setNFTPool(_nftPool);
     _setNitroPool(_nitroPool);
+    setAddress(_XGRAIL_VAULT_SLOT, _xGrailVault);
+    setAddress(_POTPOOL_SLOT, _potPool);
   }
 
   function depositArbCheck() public pure returns(bool) {
@@ -110,8 +117,8 @@ contract CamelotStrategy is BaseUpgradeableStrategy {
     uint256 entireBalance = IERC20(_underlying).balanceOf(address(this));
     IERC20(_underlying).safeApprove(_nftPool, 0);
     IERC20(_underlying).safeApprove(_nftPool, entireBalance);
-    if (rewardPoolBalance() > 0) {  //We already have a position. Withdraw from staking, add to position, stake again.
-      uint256 _posId = posId();
+    uint256 _posId = posId();
+    if (_posId > 0) {  //We already have a position. Withdraw from staking, add to position, stake again.
       INitroPool(_nitroPool).withdraw(_posId);
       INFTPool(_nftPool).addToPosition(_posId, entireBalance);
       INFTPool(_nftPool).safeTransferFrom(address(this), _nitroPool, _posId);
@@ -141,34 +148,102 @@ contract CamelotStrategy is BaseUpgradeableStrategy {
     _setPausedInvesting(false);
   }
 
-  function setDepositLiquidationPath(address [] memory _route) public onlyGovernance {
-    address _underlying = underlying();
-    address token0 = ICamelotPair(_underlying).token0();
-    address token1 = ICamelotPair(_underlying).token1();
-    require(_route[0] == weth, "Path should start with WETH");
-    require(_route[_route.length-1] == token0 || _route[_route.length-1] == token1, "Path should end with a token in the LP");
-    WETH2deposit[_route[_route.length-1]] = _route;
+  function addRewardToken(address _token) public onlyGovernance {
+    rewardTokens.push(_token);
   }
 
-  function setRewardLiquidationPath(address [] memory _route) public onlyGovernance {
-    require(_route[_route.length-1] == weth, "Path should end with WETH");
-    bool isReward = false;
-    for(uint256 i = 0; i < rewardTokens.length; i++){
-      if (_route[0] == rewardTokens[i]) {
-        isReward = true;
+  function _claimRewards() internal {
+    INitroPool(nitroPool()).harvest();
+    INFTPool(nftPool()).harvestPosition(posId());
+  }
+
+  function _liquidateRewards(uint256 _xGrailAmount) internal {
+    address _rewardToken = rewardToken();
+    address _universalLiquidator = universalLiquidator();
+    for (uint256 i; i < rewardTokens.length; i++) {
+      address token = rewardTokens[i];
+      uint256 balance = IERC20(token).balanceOf(address(this));
+      if (balance == 0) {
+          continue;
+      }
+      if (token != _rewardToken){
+          IERC20(token).safeApprove(_universalLiquidator, 0);
+          IERC20(token).safeApprove(_universalLiquidator, balance);
+          IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, balance, 1, address(this));
       }
     }
-    require(isReward, "Path should start with a rewardToken");
-    reward2WETH[_route[0]] = _route;
+
+    uint256 rewardBalance = IERC20(_rewardToken).balanceOf(address(this));
+    _notifyProfitInRewardToken(_rewardToken, rewardBalance.add(_xGrailAmount));
+    uint256 remainingRewardBalance = IERC20(_rewardToken).balanceOf(address(this));
+
+    if (remainingRewardBalance == 0) {
+      return;
+    }
+
+    IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
+    IERC20(_rewardToken).safeApprove(_universalLiquidator, remainingRewardBalance);
+
+    address _underlying = underlying();
+
+    address token0 = ICamelotPair(_underlying).token0();
+    address token1 = ICamelotPair(_underlying).token1();
+
+    uint256 toToken0 = remainingRewardBalance.div(2);
+    uint256 toToken1 = remainingRewardBalance.sub(toToken0);
+
+    uint256 token0Amount;
+    if (_rewardToken != token0) {
+      IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, token0, toToken0, 1, address(this));
+      token0Amount = IERC20(token0).balanceOf(address(this));
+    } else {
+      token0Amount = toToken0;
+    }
+
+    uint256 token1Amount;
+    if (_rewardToken != token1) {
+      IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, token1, toToken1, 1, address(this));
+      token1Amount = IERC20(token0).balanceOf(address(this));
+    } else {
+      token1Amount = toToken1;
+    }
+
+    IERC20(token0).safeApprove(camelotRouter, 0);
+    IERC20(token0).safeApprove(camelotRouter, token0Amount);
+
+    IERC20(token1).safeApprove(camelotRouter, 0);
+    IERC20(token1).safeApprove(camelotRouter, token1Amount);
+
+    ICamelotRouter(camelotRouter).addLiquidity(
+      token0,
+      token1,
+      token0Amount,
+      token1Amount,
+      1,
+      1,
+      address(this),
+      block.timestamp
+    );
+
+    _handleXGrail();
   }
 
-  function addRewardToken(address _token, address[] memory _path2WETH) public onlyGovernance {
-    rewardTokens.push(_token);
-    setRewardLiquidationPath(_path2WETH);
-  }
+  function _handleXGrail() internal {
+    uint256 balance = IERC20(xGrail).balanceOf(address(this));
+    address _xGrailVault = xGrailVault();
+    address _potPool = potPool();
 
-  // We assume that all the tradings can be done on Sushiswap
-  function _liquidateReward() internal {
+    IERC20(xGrail).safeApprove(_xGrailVault, 0);
+    IERC20(xGrail).safeApprove(_xGrailVault, balance);
+    IVault(_xGrailVault).deposit(balance);
+
+    uint256 vaultBalance = IERC20(_xGrailVault).balanceOf(address(this));
+    IERC20(_xGrailVault).safeTransfer(_potPool, vaultBalance);
+    IPotPool(_potPool).notifyTargetRewardAmount(_xGrailVault, vaultBalance);
+
+    uint256 iFarmBalance = IERC20(iFarm).balanceOf(address(this));
+    IERC20(iFarm).safeTransfer(_potPool, iFarmBalance);
+    IPotPool(_potPool).notifyTargetRewardAmount(iFarm, iFarmBalance);
   }
 
   /*
@@ -190,7 +265,8 @@ contract CamelotStrategy is BaseUpgradeableStrategy {
     if (address(rewardPool()) != address(0)) {
       exitRewardPool();
     }
-    _liquidateReward();
+    uint256 xGrailReward = IERC20(xGrail).balanceOf(address(this));
+    _liquidateRewards(xGrailReward);
     IERC20(_underlying).safeTransfer(vault(), IERC20(_underlying).balanceOf(address(this)));
   }
 
@@ -241,26 +317,12 @@ contract CamelotStrategy is BaseUpgradeableStrategy {
   *   when the investing is being paused by governance.
   */
   function doHardWork() external onlyNotPausedInvesting restricted {
-    _liquidateReward();
+    _claimRewards();
+    uint256 xGrailReward = IERC20(xGrail).balanceOf(address(this));
+    _liquidateRewards(xGrailReward);
     investAllUnderlying();
   }
 
-  /**
-  * Can completely disable claiming UNI rewards and selling. Good for emergency withdraw in the
-  * simplest possible way.
-  */
-  function setSell(bool s) public onlyGovernance {
-    _setSell(s);
-  }
-
-  /**
-  * Sets the minimum amount of CRV needed to trigger a sale.
-  */
-  function setSellFloor(uint256 floor) public onlyGovernance {
-    _setSellFloor(floor);
-  }
-
-  // masterchef rewards pool ID
   function _setPosId(uint256 _value) internal {
     setUint256(_POS_ID_SLOT, _value);
   }
@@ -283,6 +345,24 @@ contract CamelotStrategy is BaseUpgradeableStrategy {
 
   function nitroPool() public view returns (address) {
     return getAddress(_NITRO_POOL_SLOT);
+  }
+
+  function setXGrailVault(address _value) public onlyGovernance {
+    require(xGrailVault() == address(0), "Hodl vault already set");
+    setAddress(_XGRAIL_VAULT_SLOT, _value);
+  }
+
+  function xGrailVault() public view returns (address) {
+    return getAddress(_XGRAIL_VAULT_SLOT);
+  }
+
+  function setPotPool(address _value) public onlyGovernance {
+    require(potPool() == address(0), "PotPool already set");
+    setAddress(_POTPOOL_SLOT, _value);
+  }
+
+  function potPool() public view returns (address) {
+    return getAddress(_POTPOOL_SLOT);
   }
 
   function finalizeUpgrade() external onlyGovernance {

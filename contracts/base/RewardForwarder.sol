@@ -27,12 +27,28 @@ contract RewardForwarder is Controllable {
         address _storage
     ) public Controllable(_storage) {}
 
-    function notifyFee(address _token, uint256 _profitSharingFee, uint256 _strategistFee, uint256 _platformFee) external {
-        _notifyFee(_token, _profitSharingFee, _strategistFee, _platformFee);
+    function notifyFee(
+        address _token,
+        uint256 _profitSharingFee,
+        uint256 _strategistFee,
+        uint256 _platformFee
+    ) external {
+        _notifyFee(
+            _token,
+            _profitSharingFee,
+            _strategistFee,
+            _platformFee
+        );
     }
 
-    function _notifyFee(address _token, uint256 _profitSharingFee, uint256 _strategistFee, uint256 _platformFee) internal {
+    function _notifyFee(
+        address _token,
+        uint256 _profitSharingFee,
+        uint256 _strategistFee,
+        uint256 _platformFee
+    ) internal {
         address _controller = controller();
+        address liquidator = IController(_controller).universalLiquidator();
 
         uint totalTransferAmount = _profitSharingFee.add(_strategistFee).add(_platformFee);
         require(totalTransferAmount > 0, "totalTransferAmount should not be 0");
@@ -89,7 +105,5 @@ contract RewardForwarder is Controllable {
             }
             IERC20(iFARM).safeTransfer(IController(_controller).profitSharingReceiver(), _profitSharingFee);
         }
-        IERC20(_token).safeTransfer(IController(_controller).protocolFeeReceiver(), _platformFee);
-        IERC20(_token).safeTransfer(IController(_controller).profitSharingReceiver(), _profitSharingFee);
     }
 }

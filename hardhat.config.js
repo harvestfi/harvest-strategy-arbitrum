@@ -23,7 +23,7 @@ module.exports = {
       blockGasLimit: 100e6,
       forking: {
         url: `https://arb-mainnet.g.alchemy.com/v2/${secret.alchemyKey}`,
-        // blockNumber: 79985280, // <-- edit here
+        blockNumber: 93059350, // <-- edit here
       },
     },
     mainnet: {
