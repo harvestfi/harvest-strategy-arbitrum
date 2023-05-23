@@ -129,6 +129,17 @@ contract CamelotNitroStrategy is BaseUpgradeableStrategy {
     }
   }
 
+  function updateNitroPool(address newNitroPool) external onlyGovernance {
+    address _nitroPool = nitroPool();
+    uint256 _posId = posId();
+    if (_posId > 0) {
+      INitroPool(_nitroPool).harvest();
+      INitroPool(_nitroPool).withdraw(_posId);
+    }
+    _setNitroPool(newNitroPool);
+    INFTPool(nftPool()).safeTransferFrom(address(this), nitroPool(), _posId);
+  }
+
   /*
   *   In case there are some issues discovered about the pool or underlying asset
   *   Governance can exit the pool properly
@@ -152,9 +163,14 @@ contract CamelotNitroStrategy is BaseUpgradeableStrategy {
   }
 
   function _claimRewards() internal {
-    if (posId() > 0){
-      INitroPool(nitroPool()).harvest();
-      INFTPool(nftPool()).harvestPosition(posId());
+    uint256 _posId = posId();
+    if (_posId > 0){
+      address _nitroPool = nitroPool();
+      address _nftPool = nftPool();
+      INitroPool(_nitroPool).harvest();
+      INitroPool(_nitroPool).withdraw(_posId);
+      INFTPool(_nftPool).harvestPosition(_posId);
+      INFTPool(_nftPool).safeTransferFrom(address(this), _nitroPool, _posId);
     }
   }
 
@@ -175,10 +191,17 @@ contract CamelotNitroStrategy is BaseUpgradeableStrategy {
     }
 
     uint256 rewardBalance = IERC20(_rewardToken).balanceOf(address(this));
-    _notifyProfitInRewardToken(_rewardToken, rewardBalance.add(_xGrailAmount));
+    uint256 notifyBalance;
+    if (_xGrailAmount > rewardBalance.mul(9)) {
+      notifyBalance = rewardBalance.mul(10);
+    } else {
+      notifyBalance = rewardBalance.add(_xGrailAmount);
+    }
+    _notifyProfitInRewardToken(_rewardToken, notifyBalance);
     uint256 remainingRewardBalance = IERC20(_rewardToken).balanceOf(address(this));
 
-    if (remainingRewardBalance == 0) {
+    if (remainingRewardBalance < 1e6) {
+      _handleXGrail();
       return;
     }
 
@@ -231,6 +254,7 @@ contract CamelotNitroStrategy is BaseUpgradeableStrategy {
 
   function _handleXGrail() internal {
     uint256 balance = IERC20(xGrail).balanceOf(address(this));
+    if (balance == 0) { return; }
     address _xGrailVault = xGrailVault();
     address _potPool = potPool();
 
@@ -367,4 +391,13 @@ contract CamelotNitroStrategy is BaseUpgradeableStrategy {
   }
 
   receive() external payable {} // this is needed for the WETH unwrapping
+
+  bytes4 private constant _ERC721_RECEIVED = 0x150b7a02;
+  function onERC721Received(address /*operator*/, address /*from*/, uint256 /*tokenId*/, bytes calldata /*data*/) external pure returns (bytes4) {
+    return _ERC721_RECEIVED;
+  }
+
+  function onNFTHarvest(address /*operator*/, address /*to*/, uint256 /*tokenId*/, uint256 /*grailAmount*/, uint256 /*xGrailAmount*/) external pure returns (bool) {return true;}
+  function onNFTAddToPosition(address /*operator*/, uint256 /*tokenId*/, uint256 /*lpAmount*/) external pure returns (bool) {return true;}
+  function onNFTWithdraw(address /*operator*/, uint256 /*tokenId*/, uint256 /*lpAmount*/) external pure returns (bool) {return true;}
 }

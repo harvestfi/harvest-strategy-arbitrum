@@ -36,14 +36,22 @@ contract XGrailStrategy is BaseUpgradeableStrategy {
     address public constant camelotRouter = address(0xc873fEcbd354f5A56E00E710B90EF4201db2448d);
 
     bytes32 internal constant _YIELD_BOOSTER_SLOT = 0xbec2ddcc523ceccf38b524de8ba8b3f9263c108934a48e6c1382566b16a326d2;
+    bytes32 internal constant _ALLOCATION_WHITELIST_SLOT = 0x0a5b0b20c401b06b37b537c3cab830e5993f53887001d5bcca3f1a84420b9ac4;
 
     CurrentAllocation[] public currentAllocations;
     TargetAllocation[] public allocationTargets;
     address[] public rewardTokens;
     mapping(address => bool) internal isLp;
 
+    modifier onlyAllocationWhitelist() {
+        require(_isAddressInList(msg.sender, allocationWhitelist()),
+        "Caller has to be whitelisted");
+        _;
+    }
+
     constructor() public BaseUpgradeableStrategy() {
         assert(_YIELD_BOOSTER_SLOT == bytes32(uint256(keccak256("eip1967.vaultStorage.yieldBooster")) - 1));
+        assert(_ALLOCATION_WHITELIST_SLOT == bytes32(uint256(keccak256("eip1967.vaultStorage.allocationWhitelist")) - 1));
     }
 
     function initializeBaseStrategy(
@@ -63,11 +71,12 @@ contract XGrailStrategy is BaseUpgradeableStrategy {
             harvestMSIG
         );
 
-        setYieldBooster(_yieldBooster);
-    }
-
-    function depositArbCheck() external pure returns(bool) {
-        return true;
+        setAddress(_YIELD_BOOSTER_SLOT, _yieldBooster);
+        address[] memory whitelist = new address[](3);
+        whitelist[0] = governance();
+        whitelist[1] = harvestMSIG;
+        whitelist[2] = address(0x6a74649aCFD7822ae8Fb78463a9f2192752E5Aa2);
+        setAddressArray(_ALLOCATION_WHITELIST_SLOT, whitelist);
     }
 
     function yieldBooster() public view returns(address) {
@@ -76,6 +85,18 @@ contract XGrailStrategy is BaseUpgradeableStrategy {
 
     function setYieldBooster(address _target) public onlyGovernance {
         setAddress(_YIELD_BOOSTER_SLOT, _target);
+    }
+
+    function allocationWhitelist() public view returns(address[] memory) {
+        return getAddressArray(_ALLOCATION_WHITELIST_SLOT);
+    }
+
+    function setAllocationWhitelist(address[] memory _allocationWhitelist) public onlyGovernance {
+        setAddressArray(_ALLOCATION_WHITELIST_SLOT, _allocationWhitelist);
+    }
+
+    function depositArbCheck() external pure returns(bool) {
+        return true;
     }
 
     function dividendsAddress() public view returns(address) {
@@ -272,7 +293,7 @@ contract XGrailStrategy is BaseUpgradeableStrategy {
         uint256[] memory weights,
         address[] memory poolAddresses,
         uint256[] memory tokenIds
-    ) external onlyGovernance {
+    ) external onlyAllocationWhitelist {
         require(addresses.length == weights.length, "Array mismatch");
         require(addresses.length == poolAddresses.length, "Array mismatch");
         require(addresses.length == tokenIds.length, "Array mismatch");

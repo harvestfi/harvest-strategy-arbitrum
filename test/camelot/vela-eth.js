@@ -8,29 +8,28 @@ const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
 
 const HodlStrategy = artifacts.require("XGrailStrategyMainnet_XGrail");
-const Strategy = artifacts.require("CamelotNitroIFarmStrategyMainnet_iFARM_ETH");
+const Strategy = artifacts.require("CamelotNitroStrategyMainnet_VELA_ETH");
 const IXGrail = artifacts.require("IXGrail")
 
 const D18 = new BigNumber(Math.pow(10, 18));
 
-//This test was developed at blockNumber 93361850
+//This test was developed at blockNumber 93637750
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Camelot iFARM-ETH HODL in xGRAIL", function() {
+describe("Mainnet Camelot GMX-USDC HODL in xGRAIL", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x6a74649aCFD7822ae8Fb78463a9f2192752E5Aa2";
+  let underlyingWhale = "0x03998406a9dd2A16E32e5F993549FffC96701443";
   let hodlUnderlying = "0x3CAaE25Ee616f2C8E13C74dA0813402eae3F496b";
-  let iFarmAddr = "0x9dCA587dc65AC0a043828B0acd946d71eb8D46c1";
-  let iFarm;
   let camelotGovernance = "0x460d0F7B75412592D14440857f715ec28861c2D7";
   let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
   let usdc = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8";
   let grail = "0x3d9907F9a368ad0a51Be60f7Da3b97cf940982D8";
+  let vela = "0x088cd8f5eF3652623c22D48b1605DCfE860Cd704";
 
   // parties in the protocol
   let governance;
@@ -45,8 +44,7 @@ describe("Mainnet Camelot iFARM-ETH HODL in xGRAIL", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xD2A7084369cC93672b2CA868757a9f327e3677a4");
-    iFarm = await IERC20.at(iFarmAddr);
+    underlying = await IERC20.at("0x4c0A68dd92449Fc06c1A651E9eb1dFfB61D64e18");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -90,10 +88,16 @@ describe("Mainnet Camelot iFARM-ETH HODL in xGRAIL", function() {
         type: 'PotPool',
         rewardTokens: [
           hodlVault.address, // fxGrail
-          iFarmAddr
         ]
       },
-      "liquidation": [{"camelot": [usdc, grail]}, {"camelot": [grail, usdc]}, {"camelot": [weth, usdc, grail]}, {"camelot": [grail, usdc, weth]}]
+      "liquidation": [
+        {"camelot": [usdc, grail]},
+        {"camelot": [grail, usdc]},
+        {"camelot": [weth, usdc, grail]},
+        {"camelot": [grail, usdc, weth]},
+        {"camelot": [vela, weth, usdc, grail]},
+        {"camelot": [grail, usdc, weth, vela]}
+      ]
     });
 
     await strategy.setXGrailVault(hodlVault.address, {from: governance});
@@ -132,7 +136,6 @@ describe("Mainnet Camelot iFARM-ETH HODL in xGRAIL", function() {
       let oldPotPoolBalance;
       let newPotPoolBalance;
       let hodlPrice;
-      let iFarmPrice;
       let underlyingPrice;
       let oldValue;
       let newValue;
@@ -142,23 +145,19 @@ describe("Mainnet Camelot iFARM-ETH HODL in xGRAIL", function() {
         oldSharePrice = new BigNumber(await vault.getPricePerFullShare());
         oldHodlSharePrice = new BigNumber(await hodlVault.getPricePerFullShare());
         oldPotPoolBalance = new BigNumber(await hodlVault.balanceOf(potPool.address));
-        oldIFarmBalance = new BigNumber(await iFarm.balanceOf(potPool.address));
         await controller.doHardWork(vault.address, {from: governance});
         await controller.doHardWork(hodlVault.address, {from: governance});
         newSharePrice = new BigNumber(await vault.getPricePerFullShare());
         newHodlSharePrice = new BigNumber(await hodlVault.getPricePerFullShare());
         newPotPoolBalance = new BigNumber(await hodlVault.balanceOf(potPool.address));
-        newIFarmBalance = new BigNumber(await iFarm.balanceOf(potPool.address));
 
         hodlPrice = new BigNumber(1454.87).times(D18);
-        underlyingPrice = new BigNumber(100000/187.4).times(D18);
-        iFarmPrice = new BigNumber(50000/1308.2).times(D18);
+        underlyingPrice = new BigNumber(1064299/6691.328481).times(D18);
         console.log("Hodl price:", hodlPrice.toFixed()/D18.toFixed());
         console.log("Underlying price:", underlyingPrice.toFixed()/D18.toFixed());
-        console.log("iFARM price:", iFarmPrice.toFixed()/D18.toFixed());
 
-        oldValue = (fTokenBalance.times(oldSharePrice).times(underlyingPrice)).div(1e36).plus((oldPotPoolBalance.times(oldHodlSharePrice).times(hodlPrice)).div(1e36)).plus(oldIFarmBalance.times(iFarmPrice).div(1e18));
-        newValue = (fTokenBalance.times(newSharePrice).times(underlyingPrice)).div(1e36).plus((newPotPoolBalance.times(newHodlSharePrice).times(hodlPrice)).div(1e36)).plus(newIFarmBalance.times(iFarmPrice).div(1e18));
+        oldValue = (fTokenBalance.times(oldSharePrice).times(underlyingPrice)).div(1e36).plus((oldPotPoolBalance.times(oldHodlSharePrice).times(hodlPrice)).div(1e36));
+        newValue = (fTokenBalance.times(newSharePrice).times(underlyingPrice)).div(1e36).plus((newPotPoolBalance.times(newHodlSharePrice).times(hodlPrice)).div(1e36));
 
         console.log("old value: ", oldValue.toFixed()/D18.toFixed());
         console.log("new value: ", newValue.toFixed()/D18.toFixed());

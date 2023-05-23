@@ -9,12 +9,11 @@ import "../../base/interface/camelot/ICamelotRouter.sol";
 import "../../base/interface/camelot/ICamelotPair.sol";
 import "../../base/interface/camelot/INFTPool.sol";
 import "../../base/interface/camelot/INitroPool.sol";
-import "../../base/interface/camelot/INFTHandler.sol";
 import "../../base/interface/IVault.sol";
 import "../../base/interface/IPotPool.sol";
 import "../../base/interface/IUniversalLiquidator.sol";
 
-contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy, INFTHandler {
+contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
@@ -131,6 +130,17 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy, INFTHandler {
     }
   }
 
+  function updateNitroPool(address newNitroPool) external onlyGovernance {
+    address _nitroPool = nitroPool();
+    uint256 _posId = posId();
+    if (_posId > 0) {
+      INitroPool(_nitroPool).harvest();
+      INitroPool(_nitroPool).withdraw(_posId);
+    }
+    _setNitroPool(newNitroPool);
+    INFTPool(nftPool()).safeTransferFrom(address(this), nitroPool(), _posId);
+  }
+
   /*
   *   In case there are some issues discovered about the pool or underlying asset
   *   Governance can exit the pool properly
@@ -154,9 +164,14 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy, INFTHandler {
   }
 
   function _claimRewards() internal {
-    if (posId() > 0){
-      INitroPool(nitroPool()).harvest();
-      INFTPool(nftPool()).harvestPosition(posId());
+    uint256 _posId = posId();
+    if (_posId > 0){
+      address _nitroPool = nitroPool();
+      address _nftPool = nftPool();
+      INitroPool(_nitroPool).harvest();
+      INitroPool(_nitroPool).withdraw(_posId);
+      INFTPool(_nftPool).harvestPosition(_posId);
+      INFTPool(_nftPool).safeTransferFrom(address(this), _nitroPool, _posId);
     }
   }
 
@@ -233,6 +248,7 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy, INFTHandler {
 
   function _handleXGrail() internal {
     uint256 balance = IERC20(xGrail).balanceOf(address(this));
+    if (balance == 0) { return; }
     address _xGrailVault = xGrailVault();
     address _potPool = potPool();
 
@@ -375,12 +391,11 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy, INFTHandler {
   receive() external payable {} // this is needed for the WETH unwrapping
 
   bytes4 private constant _ERC721_RECEIVED = 0x150b7a02;
-  function onERC721Received(address /*operator*/, address /*from*/, uint256 /*tokenId*/, bytes calldata /*data*/) external override returns (bytes4) {
+  function onERC721Received(address /*operator*/, address /*from*/, uint256 /*tokenId*/, bytes calldata /*data*/) external pure returns (bytes4) {
     return _ERC721_RECEIVED;
   }
 
-  function onNFTHarvest(address /*operator*/, address /*to*/, uint256 /*tokenId*/, uint256 /*grailAmount*/, uint256 /*xGrailAmount*/) external override returns (bool) {return true;}
-  function onNFTAddToPosition(address /*operator*/, uint256 /*tokenId*/, uint256 /*lpAmount*/) external override returns (bool) {return true;}
-  function onNFTWithdraw(address /*operator*/, uint256 /*tokenId*/, uint256 /*lpAmount*/) external override returns (bool) {return true;}
-
+  function onNFTHarvest(address /*operator*/, address /*to*/, uint256 /*tokenId*/, uint256 /*grailAmount*/, uint256 /*xGrailAmount*/) external pure returns (bool) {return true;}
+  function onNFTAddToPosition(address /*operator*/, uint256 /*tokenId*/, uint256 /*lpAmount*/) external pure returns (bool) {return true;}
+  function onNFTWithdraw(address /*operator*/, uint256 /*tokenId*/, uint256 /*lpAmount*/) external pure returns (bool) {return true;}
 }
