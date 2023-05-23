@@ -152,8 +152,10 @@ contract CamelotNitroStrategy is BaseUpgradeableStrategy {
   }
 
   function _claimRewards() internal {
-    INitroPool(nitroPool()).harvest();
-    INFTPool(nftPool()).harvestPosition(posId());
+    if (posId() > 0){
+      INitroPool(nitroPool()).harvest();
+      INFTPool(nftPool()).harvestPosition(posId());
+    }
   }
 
   function _liquidateRewards(uint256 _xGrailAmount) internal {

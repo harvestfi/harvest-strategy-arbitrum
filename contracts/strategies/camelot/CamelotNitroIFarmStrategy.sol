@@ -9,11 +9,12 @@ import "../../base/interface/camelot/ICamelotRouter.sol";
 import "../../base/interface/camelot/ICamelotPair.sol";
 import "../../base/interface/camelot/INFTPool.sol";
 import "../../base/interface/camelot/INitroPool.sol";
+import "../../base/interface/camelot/INFTHandler.sol";
 import "../../base/interface/IVault.sol";
 import "../../base/interface/IPotPool.sol";
 import "../../base/interface/IUniversalLiquidator.sol";
 
-contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
+contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy, INFTHandler {
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
@@ -153,8 +154,10 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
   }
 
   function _claimRewards() internal {
-    INitroPool(nitroPool()).harvest();
-    INFTPool(nftPool()).harvestPosition(posId());
+    if (posId() > 0){
+      INitroPool(nitroPool()).harvest();
+      INFTPool(nftPool()).harvestPosition(posId());
+    }
   }
 
   function _liquidateRewards(uint256 _xGrailAmount) internal {
@@ -370,4 +373,14 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
   }
 
   receive() external payable {} // this is needed for the WETH unwrapping
+
+  bytes4 private constant _ERC721_RECEIVED = 0x150b7a02;
+  function onERC721Received(address /*operator*/, address /*from*/, uint256 /*tokenId*/, bytes calldata /*data*/) external override returns (bytes4) {
+    return _ERC721_RECEIVED;
+  }
+
+  function onNFTHarvest(address /*operator*/, address /*to*/, uint256 /*tokenId*/, uint256 /*grailAmount*/, uint256 /*xGrailAmount*/) external override returns (bool) {return true;}
+  function onNFTAddToPosition(address /*operator*/, uint256 /*tokenId*/, uint256 /*lpAmount*/) external override returns (bool) {return true;}
+  function onNFTWithdraw(address /*operator*/, uint256 /*tokenId*/, uint256 /*lpAmount*/) external override returns (bool) {return true;}
+
 }

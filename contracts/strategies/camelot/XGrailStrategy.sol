@@ -119,6 +119,9 @@ contract XGrailStrategy is BaseUpgradeableStrategy {
         }
 
         uint256 rewardBalance = IERC20(_rewardToken).balanceOf(address(this));
+        if (rewardBalance < 1e12){
+            return;
+        }
         _notifyProfitInRewardToken(_rewardToken, rewardBalance.add(_xGrailAmount));
         uint256 remainingRewardBalance = IERC20(_rewardToken).balanceOf(address(this));
 
