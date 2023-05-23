@@ -4,6 +4,7 @@ const IController = artifacts.require("IController");
 const IRewardForwarder = artifacts.require("IRewardForwarder");
 const Vault = artifacts.require("VaultV2");
 const IUpgradeableStrategy = artifacts.require("IUpgradeableStrategy");
+const ILiquidatorRegistry = artifacts.require("IUniversalLiquidatorRegistry");
 
 const Utils = require("./Utils.js");
 
@@ -108,6 +109,20 @@ async function setupCoreProtocol(config) {
     const PotPool = artifacts.require("PotPool");
     rewardPool = await PotPool.at(config.existingRewardPoolAddress);
     console.log("Fetching Reward Pool deployed: ", rewardPool.address);
+  }
+
+  let universalLiquidatorRegistry = await ILiquidatorRegistry.at(addresses.UniversalLiquidatorRegistry);
+
+  // set liquidation paths
+  if(config.liquidation) {
+    for (i=0;i<config.liquidation.length;i++) {
+      dex = Object.keys(config.liquidation[i])[0];
+      await universalLiquidatorRegistry.setPath(
+        web3.utils.keccak256(dex),
+        config.liquidation[i][dex],
+        {from: config.ULOwner}
+      );
+    }
   }
 
   // default arguments are storage and vault addresses

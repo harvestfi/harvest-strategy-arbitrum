@@ -101,34 +101,34 @@ contract BaseUpgradeableStrategyStorage is ControllableInit {
     return getAddress(_REWARD_TOKEN_SLOT);
   }
 
-    function _setRewardTokens(address[] memory _rewardTokens) internal {
-        setAddressArray(_REWARD_TOKENS_SLOT, _rewardTokens);
-    }
+  function _setRewardTokens(address[] memory _rewardTokens) internal {
+    setAddressArray(_REWARD_TOKENS_SLOT, _rewardTokens);
+  }
 
-    function isRewardToken(address _token) public view returns (bool) {
-        return _isAddressInList(_token, rewardTokens());
-    }
+  function isRewardToken(address _token) public view returns (bool) {
+    return _isAddressInList(_token, rewardTokens());
+  }
 
-    function rewardTokens() public view returns (address[] memory) {
-        return getAddressArray(_REWARD_TOKENS_SLOT);
-    }
+  function rewardTokens() public view returns (address[] memory) {
+    return getAddressArray(_REWARD_TOKENS_SLOT);
+  }
 
-    function _isAddressInList(address _searchValue, address[] memory _list) internal pure returns (bool) {
-        for (uint i = 0; i < _list.length; i++) {
-            if (_list[i] == _searchValue) {
-                return true;
-            }
-        }
-        return false;
+  function _isAddressInList(address _searchValue, address[] memory _list) internal pure returns (bool) {
+    for (uint i = 0; i < _list.length; i++) {
+      if (_list[i] == _searchValue) {
+        return true;
+      }
     }
+    return false;
+  }
 
-    function _setStrategist(address _strategist) internal {
-        setAddress(_STRATEGIST_SLOT, _strategist);
-    }
+  function _setStrategist(address _strategist) internal {
+    setAddress(_STRATEGIST_SLOT, _strategist);
+  }
 
-    function strategist() public view returns (address) {
-        return getAddress(_STRATEGIST_SLOT);
-    }
+  function strategist() public view returns (address) {
+    return getAddress(_STRATEGIST_SLOT);
+  }
 
   function _setVault(address _address) internal {
     setAddress(_VAULT_SLOT, _address);
@@ -163,21 +163,25 @@ contract BaseUpgradeableStrategyStorage is ControllableInit {
     return getUint256(_SELL_FLOOR_SLOT);
   }
 
-    function profitSharingNumerator() public view returns (uint256) {
-        return IController(controller()).profitSharingNumerator();
-    }
+  function profitSharingNumerator() public view returns (uint256) {
+    return IController(controller()).profitSharingNumerator();
+  }
 
-    function platformFeeNumerator() public view returns (uint256) {
-        return IController(controller()).platformFeeNumerator();
-    }
+  function platformFeeNumerator() public view returns (uint256) {
+    return IController(controller()).platformFeeNumerator();
+  }
 
-    function strategistFeeNumerator() public view returns (uint256) {
-        return IController(controller()).strategistFeeNumerator();
-    }
+  function strategistFeeNumerator() public view returns (uint256) {
+    return IController(controller()).strategistFeeNumerator();
+  }
 
-    function feeDenominator() public view returns (uint256) {
-        return IController(controller()).feeDenominator();
-    }
+  function feeDenominator() public view returns (uint256) {
+    return IController(controller()).feeDenominator();
+  }
+
+  function universalLiquidator() public view returns (address) {
+    return IController(controller()).universalLiquidator();
+  }
 
   // upgradeability
 
