@@ -12,19 +12,19 @@ const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("BalancerStrategyMainnet_wBTC_wETH_USDC");
+const Strategy = artifacts.require("BalancerStrategyMainnet_bbwstETH_bbaUSD");
 
 // Developed and tested at blockNumber 95047800
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Arbitrum Mainnet Balancer wBTC-wETH-USDC", function() {
+describe("Arbitrum Mainnet Balancer bb-wstETH - bb-aUSD", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x6cfA0484d8cA2bD7DD1C708d95e1716a5EaA550A";
+  let underlyingWhale = "0x854B004700885A61107B458f11eCC169A019b764";
 
   // parties in the protocol
   let governance;
@@ -39,13 +39,13 @@ describe("Arbitrum Mainnet Balancer wBTC-wETH-USDC", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0x64541216bAFFFEec8ea535BB71Fbc927831d0595");
+    underlying = await IERC20.at("0x9fB7D6dCAC7b6aa20108BaD226c35B85A9e31B63");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
   async function setupBalance(){
     let etherGiver = accounts[9];
-    await send.ether(etherGiver, underlyingWhale, "1" + "000000000000000000");
+    await web3.eth.sendTransaction({ from: etherGiver, to: underlyingWhale, value: 10e18});
 
     farmerBalance = await underlying.balanceOf(underlyingWhale);
     await underlying.transfer(farmer1, farmerBalance, { from: underlyingWhale });
@@ -61,7 +61,7 @@ describe("Arbitrum Mainnet Balancer wBTC-wETH-USDC", function() {
     await impersonates([governance, underlyingWhale]);
 
     let etherGiver = accounts[9];
-    await send.ether(etherGiver, governance, "100" + "000000000000000000");
+    await web3.eth.sendTransaction({ from: etherGiver, to: governance, value: 10e18});
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
@@ -97,8 +97,8 @@ describe("Arbitrum Mainnet Balancer wBTC-wETH-USDC", function() {
         console.log("new shareprice: ", newSharePrice.toFixed());
         console.log("growth: ", newSharePrice.toFixed() / oldSharePrice.toFixed());
 
-        apr = (newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/1565))*365;
-        apy = ((newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/1565))+1)**365;
+        apr = (newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/300))*365;
+        apy = ((newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/300))+1)**365;
 
         console.log("instant APR:", apr*100, "%");
         console.log("instant APY:", (apy-1)*100, "%");
@@ -109,8 +109,8 @@ describe("Arbitrum Mainnet Balancer wBTC-wETH-USDC", function() {
       let farmerNewBalance = new BigNumber(await underlying.balanceOf(farmer1));
       Utils.assertBNGt(farmerNewBalance, farmerOldBalance);
 
-      apr = (farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/1565))*365;
-      apy = ((farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/1565))+1)**365;
+      apr = (farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/300))*365;
+      apy = ((farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/300))+1)**365;
 
       console.log("earned!");
       console.log("APR:", apr*100, "%");

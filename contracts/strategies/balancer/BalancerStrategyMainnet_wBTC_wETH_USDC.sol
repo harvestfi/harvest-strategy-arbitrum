@@ -14,7 +14,7 @@ contract BalancerStrategyMainnet_wBTC_wETH_USDC is BalancerStrategy {
   ) public initializer {
     address underlying = address(0x64541216bAFFFEec8ea535BB71Fbc927831d0595);
     address bal = address(0x040d1EdC9569d4Bab2D15287Dc5A4F10F56a56B8);
-    address gauge = address(0x104f1459a2fFEa528121759B238BB609034C2f01);
+    address gauge = address(0x820A9F3897B2aBFeEcE95dF4aA71D8a4fb448C3B);
     BalancerStrategy.initializeBaseStrategy(
       _storage,
       underlying,
