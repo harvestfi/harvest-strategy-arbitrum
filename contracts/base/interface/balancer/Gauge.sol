@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+//SPDX-License-Identifier: Unlicense
 pragma solidity 0.6.12;
 
 interface Gauge {
@@ -7,6 +7,7 @@ interface Gauge {
     function withdraw(uint) external;
     function user_checkpoint(address) external;
     function claim_rewards() external;
+    function bal_pseudo_minter() external view returns (address);
 }
 
 interface VotingEscrow {

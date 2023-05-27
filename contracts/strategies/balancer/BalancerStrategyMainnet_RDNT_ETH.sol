@@ -14,7 +14,7 @@ contract BalancerStrategyMainnet_RDNT_ETH is BalancerStrategy {
   ) public initializer {
     address underlying = address(0x32dF62dc3aEd2cD6224193052Ce665DC18165841);
     address bal = address(0x040d1EdC9569d4Bab2D15287Dc5A4F10F56a56B8);
-    address gauge = address(0x4E646F5d5ec30F8A09a9C9d7960989DCF4C426B5);
+    address gauge = address(0xcf9f895296F5e1D66a7D4dcf1d92e1B435E9f999);
     BalancerStrategy.initializeBaseStrategy(
       _storage,
       underlying,
