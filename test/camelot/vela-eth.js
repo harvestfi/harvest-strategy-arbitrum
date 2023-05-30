@@ -7,16 +7,16 @@ const { send } = require("@openzeppelin/test-helpers");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
 
-const HodlStrategy = artifacts.require("XGrailStrategyMainnet_XGrail");
 const Strategy = artifacts.require("CamelotNitroStrategyMainnet_VELA_ETH");
 const IXGrail = artifacts.require("IXGrail")
+const IVault = artifacts.require("IVault");
 
 const D18 = new BigNumber(Math.pow(10, 18));
 
-//This test was developed at blockNumber 93637750
+//This test was developed at blockNumber 95287150
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Camelot GMX-USDC HODL in xGRAIL", function() {
+describe("Mainnet Camelot VELA-ETH HODL in xGRAIL", function() {
   let accounts;
 
   // external contracts
@@ -24,7 +24,7 @@ describe("Mainnet Camelot GMX-USDC HODL in xGRAIL", function() {
 
   // external setup
   let underlyingWhale = "0x03998406a9dd2A16E32e5F993549FffC96701443";
-  let hodlUnderlying = "0x3CAaE25Ee616f2C8E13C74dA0813402eae3F496b";
+  let hodlVaultAddr = "0xFA10759780304c2B8d34B051C039899dFBbcad7f";
   let camelotGovernance = "0x460d0F7B75412592D14440857f715ec28861c2D7";
   let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
   let usdc = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8";
@@ -42,6 +42,7 @@ describe("Mainnet Camelot GMX-USDC HODL in xGRAIL", function() {
   let controller;
   let vault;
   let strategy;
+  let hodlVault;
 
   async function setupExternalContracts() {
     underlying = await IERC20.at("0x4c0A68dd92449Fc06c1A651E9eb1dFfB61D64e18");
@@ -70,13 +71,7 @@ describe("Mainnet Camelot GMX-USDC HODL in xGRAIL", function() {
     await web3.eth.sendTransaction({ from: etherGiver, to: camelotGovernance, value: 10e18});
 
     await setupExternalContracts();
-    [controller, hodlVault, hodlStrategy] = await setupCoreProtocol({
-      "existingVaultAddress": null,
-      "strategyArtifact": HodlStrategy,
-      "strategyArtifactIsUpgradable": true,
-      "underlying": await IERC20.at(hodlUnderlying),
-      "governance": governance,
-    });
+    hodlVault = await IVault.at(hodlVaultAddr);
     [controller, vault, strategy, potPool] = await setupCoreProtocol({
       "existingVaultAddress": null,
       "strategyArtifact": Strategy,
@@ -100,16 +95,12 @@ describe("Mainnet Camelot GMX-USDC HODL in xGRAIL", function() {
       ]
     });
 
-    await strategy.setXGrailVault(hodlVault.address, {from: governance});
     await strategy.setPotPool(potPool.address, {from: governance});
     await potPool.setRewardDistribution([strategy.address], true, {from: governance});
     await controller.addToWhitelist(strategy.address, {from: governance});
 
     xGrail = await IXGrail.at("0x3CAaE25Ee616f2C8E13C74dA0813402eae3F496b");
     await xGrail.updateTransferWhitelist(hodlVault.address, true, {from: camelotGovernance});
-
-    await controller.setUniversalLiquidator(addresses.UniversalLiquidator, {from: governance});
-    await controller.setRewardForwarder(addresses.RewardForwarder, {from: governance});
 
     // whale send underlying to farmers
     await setupBalance();

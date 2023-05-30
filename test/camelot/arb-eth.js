@@ -7,7 +7,7 @@ const { send } = require("@openzeppelin/test-helpers");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
 
-const Strategy = artifacts.require("CamelotNitroStrategyMainnet_GMX_USDC");
+const Strategy = artifacts.require("CamelotNFTStrategyMainnet_ARB_ETH");
 const IXGrail = artifacts.require("IXGrail");
 const IVault = artifacts.require("IVault");
 
@@ -16,20 +16,20 @@ const D18 = new BigNumber(Math.pow(10, 18));
 //This test was developed at blockNumber 95287150
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Camelot GMX-USDC HODL in xGRAIL", function() {
+describe("Mainnet Camelot ARB-ETH HODL in xGRAIL", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0xA616A7F376Cd9AAE8F96527dcED83Fb38B143820";
+  let underlyingWhale = "0xb16fD6848CD0A8F7780C41be0751F23F882b3BcF";
   let hodlVaultAddr = "0xFA10759780304c2B8d34B051C039899dFBbcad7f";
   let camelotGovernance = "0x460d0F7B75412592D14440857f715ec28861c2D7";
   let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
   let usdc = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8";
   let grail = "0x3d9907F9a368ad0a51Be60f7Da3b97cf940982D8";
-  let gmx = "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a";
+  let arb = "0x912CE59144191C1204E64559FE8253a0e49E6548";
 
   // parties in the protocol
   let governance;
@@ -45,7 +45,7 @@ describe("Mainnet Camelot GMX-USDC HODL in xGRAIL", function() {
   let hodlVault;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0x913398d79438e8D709211cFC3DC8566F6C67e1A8");
+    underlying = await IERC20.at("0xa6c5C7D189fA4eB5Af8ba34E63dCDD3a635D433f");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -90,7 +90,7 @@ describe("Mainnet Camelot GMX-USDC HODL in xGRAIL", function() {
         {"camelot": [grail, usdc]},
         {"camelot": [weth, usdc, grail]},
         {"camelot": [grail, usdc, weth]},
-        {"camelot": [grail, usdc, gmx]}
+        {"camelot": [grail, usdc, weth, arb]},
       ]
     });
 
@@ -142,7 +142,7 @@ describe("Mainnet Camelot GMX-USDC HODL in xGRAIL", function() {
         newPotPoolBalance = new BigNumber(await hodlVault.balanceOf(potPool.address));
 
         hodlPrice = new BigNumber(1454.87).times(D18);
-        underlyingPrice = new BigNumber(1772628/0.111103).times(D18);
+        underlyingPrice = new BigNumber(8688104/85291.3601).times(D18);
         console.log("Hodl price:", hodlPrice.toFixed()/D18.toFixed());
         console.log("Underlying price:", underlyingPrice.toFixed()/D18.toFixed());
 

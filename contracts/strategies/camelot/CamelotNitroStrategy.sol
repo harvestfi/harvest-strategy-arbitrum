@@ -227,7 +227,7 @@ contract CamelotNitroStrategy is BaseUpgradeableStrategy {
     uint256 token1Amount;
     if (_rewardToken != token1) {
       IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, token1, toToken1, 1, address(this));
-      token1Amount = IERC20(token0).balanceOf(address(this));
+      token1Amount = IERC20(token1).balanceOf(address(this));
     } else {
       token1Amount = toToken1;
     }

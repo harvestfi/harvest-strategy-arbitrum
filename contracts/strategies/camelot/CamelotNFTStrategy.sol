@@ -8,24 +8,20 @@ import "../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../../base/interface/camelot/ICamelotRouter.sol";
 import "../../base/interface/camelot/ICamelotPair.sol";
 import "../../base/interface/camelot/INFTPool.sol";
-import "../../base/interface/camelot/INitroPool.sol";
 import "../../base/interface/IVault.sol";
 import "../../base/interface/IPotPool.sol";
 import "../../base/interface/IUniversalLiquidator.sol";
 
-contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
+contract CamelotNFTStrategy is BaseUpgradeableStrategy {
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
   address public constant camelotRouter = address(0xc873fEcbd354f5A56E00E710B90EF4201db2448d);
   address public constant xGrail = address(0x3CAaE25Ee616f2C8E13C74dA0813402eae3F496b);
-  address public constant iFarm = address(0x9dCA587dc65AC0a043828B0acd946d71eb8D46c1);
   address public constant harvestMSIG = address(0xf3D1A027E858976634F81B7c41B09A05A46EdA21);
 
   // additional storage slots (on top of BaseUpgradeableStrategy ones) are defined here
   bytes32 internal constant _POS_ID_SLOT = 0x025da88341279feed86c02593d3d75bb35ff95cb72e32ffd093929b008413de5;
-  bytes32 internal constant _NFT_POOL_SLOT = 0x828d9a241b00468f203e6001f37c2f3f9b054802b5bfa652f8dee2a0f2d586d9;
-  bytes32 internal constant _NITRO_POOL_SLOT = 0x1ee567d62ee6cf3d5c44deeb8b6f34774a4a2d99f55ae3d5f1ca16bee430b005;
   bytes32 internal constant _XGRAIL_VAULT_SLOT = 0xd445aff5601e22e4f2e49f44eb54e33aa29670745d5241914b5369f65f9d43d0;
   bytes32 internal constant _POTPOOL_SLOT = 0x7f4b50847e7d7a4da6a6ea36bfb188c77e9f093697337eb9a876744f926dd014;
 
@@ -34,8 +30,6 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
 
   constructor() public BaseUpgradeableStrategy() {
     assert(_POS_ID_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.posId")) - 1));
-    assert(_NFT_POOL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.nftPool")) - 1));
-    assert(_NITRO_POOL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.nitroPool")) - 1));
     assert(_XGRAIL_VAULT_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.xGrailVault")) - 1));
     assert(_POTPOOL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.potPool")) - 1));
   }
@@ -46,7 +40,6 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
     address _vault,
     address _grail,
     address _nftPool,
-    address _nitroPool,
     address _xGrailVault,
     address _potPool
   ) public initializer {
@@ -55,7 +48,7 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
       _storage,
       _underlying,
       _vault,
-      _nitroPool,
+      _nftPool,
       _grail,
       harvestMSIG
     );
@@ -63,10 +56,6 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
     address _lpt;
     (_lpt,,,,,,,) = INFTPool(_nftPool).getPoolInfo();
     require(_lpt == underlying(), "NFTPool Info does not match underlying");
-    address checkNftPool = INitroPool(_nitroPool).nftPool();
-    require(checkNftPool == _nftPool, "NitroPool does not match NFTPool");
-    _setNFTPool(_nftPool);
-    _setNitroPool(_nitroPool);
     setAddress(_XGRAIL_VAULT_SLOT, _xGrailVault);
     setAddress(_POTPOOL_SLOT, _potPool);
   }
@@ -76,33 +65,28 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
   }
 
   function rewardPoolBalance() internal view returns (uint256 bal) {
-    (bal,,,,) = INitroPool(nitroPool()).userInfo(address(this));
+    if (posId() > 0) {
+      (bal,,,,,,,) = INFTPool(rewardPool()).getStakingPosition(posId());
+    } else {
+      bal = 0;
+    }
   }
 
   function exitRewardPool() internal {
     uint256 stakedBalance = rewardPoolBalance();
     if (stakedBalance != 0) {
-      uint256 _posId = posId();
-      INitroPool(nitroPool()).withdraw(_posId);
-      INFTPool(nftPool()).withdrawFromPosition(_posId, stakedBalance);
+      INFTPool(rewardPool()).withdrawFromPosition(posId(), stakedBalance);
     }
   }
 
   function partialWithdrawalRewardPool(uint256 amount) internal {
-      uint256 _posId = posId();
-      address _nitroPool = nitroPool();
-      address _nftPool = nftPool();
-      INitroPool(_nitroPool).withdraw(_posId);
-      INFTPool(_nftPool).withdrawFromPosition(_posId, amount);
-      INFTPool(_nftPool).safeTransferFrom(address(this), _nitroPool, _posId);
+      INFTPool(rewardPool()).withdrawFromPosition(posId(), amount);
   }
 
   function emergencyExitRewardPool() internal {
     uint256 stakedBalance = rewardPoolBalance();
     if (stakedBalance != 0) {
-      uint256 _posId = posId();
-      INitroPool(nitroPool()).emergencyWithdraw(_posId);
-      INFTPool(nftPool()).emergencyWithdraw(_posId);
+      INFTPool(rewardPool()).emergencyWithdraw(posId());
     }
   }
 
@@ -112,33 +96,18 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
 
   function enterRewardPool() internal {
     address _underlying = underlying();
-    address _nftPool = nftPool();
-    address _nitroPool = nitroPool();
+    address _rewardPool = rewardPool();
     uint256 entireBalance = IERC20(_underlying).balanceOf(address(this));
-    IERC20(_underlying).safeApprove(_nftPool, 0);
-    IERC20(_underlying).safeApprove(_nftPool, entireBalance);
+    IERC20(_underlying).safeApprove(_rewardPool, 0);
+    IERC20(_underlying).safeApprove(_rewardPool, entireBalance);
     uint256 _posId = posId();
     if (_posId > 0) {  //We already have a position. Withdraw from staking, add to position, stake again.
-      INitroPool(_nitroPool).withdraw(_posId);
-      INFTPool(_nftPool).addToPosition(_posId, entireBalance);
-      INFTPool(_nftPool).safeTransferFrom(address(this), _nitroPool, _posId);
+      INFTPool(_rewardPool).addToPosition(_posId, entireBalance);
     } else {                        //We do not yet have a position. Create a position and store the position ID. Then stake.
-      INFTPool(_nftPool).createPosition(entireBalance, 0);
-      uint256 newPosId = INFTPool(_nftPool).tokenOfOwnerByIndex(address(this), 0);
+      INFTPool(_rewardPool).createPosition(entireBalance, 0);
+      uint256 newPosId = INFTPool(_rewardPool).tokenOfOwnerByIndex(address(this), 0);
       _setPosId(newPosId);
-      INFTPool(_nftPool).safeTransferFrom(address(this), _nitroPool, posId());
     }
-  }
-
-  function updateNitroPool(address newNitroPool) external onlyGovernance {
-    address _nitroPool = nitroPool();
-    uint256 _posId = posId();
-    if (_posId > 0) {
-      INitroPool(_nitroPool).harvest();
-      INitroPool(_nitroPool).withdraw(_posId);
-    }
-    _setNitroPool(newNitroPool);
-    INFTPool(nftPool()).safeTransferFrom(address(this), nitroPool(), _posId);
   }
 
   /*
@@ -166,12 +135,7 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
   function _claimRewards() internal {
     uint256 _posId = posId();
     if (_posId > 0){
-      address _nitroPool = nitroPool();
-      address _nftPool = nftPool();
-      INitroPool(_nitroPool).harvest();
-      INitroPool(_nitroPool).withdraw(_posId);
-      INFTPool(_nftPool).harvestPosition(_posId);
-      INFTPool(_nftPool).safeTransferFrom(address(this), _nitroPool, _posId);
+      INFTPool(rewardPool()).harvestPosition(_posId);
     }
   }
 
@@ -192,10 +156,17 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
     }
 
     uint256 rewardBalance = IERC20(_rewardToken).balanceOf(address(this));
-    _notifyProfitInRewardToken(_rewardToken, rewardBalance.add(_xGrailAmount));
+    uint256 notifyBalance;
+    if (_xGrailAmount > rewardBalance.mul(9)) {
+      notifyBalance = rewardBalance.mul(10);
+    } else {
+      notifyBalance = rewardBalance.add(_xGrailAmount);
+    }
+    _notifyProfitInRewardToken(_rewardToken, notifyBalance);
     uint256 remainingRewardBalance = IERC20(_rewardToken).balanceOf(address(this));
 
-    if (remainingRewardBalance == 0) {
+    if (remainingRewardBalance < 1e6) {
+      _handleXGrail();
       return;
     }
 
@@ -259,10 +230,6 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
     uint256 vaultBalance = IERC20(_xGrailVault).balanceOf(address(this));
     IERC20(_xGrailVault).safeTransfer(_potPool, vaultBalance);
     IPotPool(_potPool).notifyTargetRewardAmount(_xGrailVault, vaultBalance);
-
-    uint256 iFarmBalance = IERC20(iFarm).balanceOf(address(this));
-    IERC20(iFarm).safeTransfer(_potPool, iFarmBalance);
-    IPotPool(_potPool).notifyTargetRewardAmount(iFarm, iFarmBalance);
   }
 
   /*
@@ -348,22 +315,6 @@ contract CamelotNitroIFarmStrategy is BaseUpgradeableStrategy {
 
   function posId() public view returns (uint256) {
     return getUint256(_POS_ID_SLOT);
-  }
-
-  function _setNFTPool(address _address) internal {
-    setAddress(_NFT_POOL_SLOT, _address);
-  }
-
-  function nftPool() public view returns (address) {
-    return getAddress(_NFT_POOL_SLOT);
-  }
-
-  function _setNitroPool(address _address) internal {
-    setAddress(_NITRO_POOL_SLOT, _address);
-  }
-
-  function nitroPool() public view returns (address) {
-    return getAddress(_NITRO_POOL_SLOT);
   }
 
   function setXGrailVault(address _value) public onlyGovernance {

@@ -7,13 +7,13 @@ const { send } = require("@openzeppelin/test-helpers");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
 
-const HodlStrategy = artifacts.require("XGrailStrategyMainnet_XGrail");
 const Strategy = artifacts.require("CamelotNitroIFarmStrategyMainnet_iFARM_ETH");
 const IXGrail = artifacts.require("IXGrail")
+const IVault = artifacts.require("IVault");
 
 const D18 = new BigNumber(Math.pow(10, 18));
 
-//This test was developed at blockNumber 93361850
+//This test was developed at blockNumber 95287150
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
 describe("Mainnet Camelot iFARM-ETH HODL in xGRAIL", function() {
@@ -24,7 +24,7 @@ describe("Mainnet Camelot iFARM-ETH HODL in xGRAIL", function() {
 
   // external setup
   let underlyingWhale = "0x6a74649aCFD7822ae8Fb78463a9f2192752E5Aa2";
-  let hodlUnderlying = "0x3CAaE25Ee616f2C8E13C74dA0813402eae3F496b";
+  let hodlVaultAddr = "0xFA10759780304c2B8d34B051C039899dFBbcad7f";
   let iFarmAddr = "0x9dCA587dc65AC0a043828B0acd946d71eb8D46c1";
   let iFarm;
   let camelotGovernance = "0x460d0F7B75412592D14440857f715ec28861c2D7";
@@ -43,6 +43,7 @@ describe("Mainnet Camelot iFARM-ETH HODL in xGRAIL", function() {
   let controller;
   let vault;
   let strategy;
+  let hodlVault;
 
   async function setupExternalContracts() {
     underlying = await IERC20.at("0xD2A7084369cC93672b2CA868757a9f327e3677a4");
@@ -72,13 +73,7 @@ describe("Mainnet Camelot iFARM-ETH HODL in xGRAIL", function() {
     await web3.eth.sendTransaction({ from: etherGiver, to: camelotGovernance, value: 10e18});
 
     await setupExternalContracts();
-    [controller, hodlVault, hodlStrategy] = await setupCoreProtocol({
-      "existingVaultAddress": null,
-      "strategyArtifact": HodlStrategy,
-      "strategyArtifactIsUpgradable": true,
-      "underlying": await IERC20.at(hodlUnderlying),
-      "governance": governance,
-    });
+    hodlVault = await IVault.at(hodlVaultAddr);
     [controller, vault, strategy, potPool] = await setupCoreProtocol({
       "existingVaultAddress": null,
       "strategyArtifact": Strategy,
@@ -93,19 +88,19 @@ describe("Mainnet Camelot iFARM-ETH HODL in xGRAIL", function() {
           iFarmAddr
         ]
       },
-      "liquidation": [{"camelot": [usdc, grail]}, {"camelot": [grail, usdc]}, {"camelot": [weth, usdc, grail]}, {"camelot": [grail, usdc, weth]}]
+      "liquidation": [
+        {"camelot": [usdc, grail]},
+        {"camelot": [grail, usdc]},
+        {"camelot": [weth, usdc, grail]},
+        {"camelot": [grail, usdc, weth]}]
     });
 
-    await strategy.setXGrailVault(hodlVault.address, {from: governance});
     await strategy.setPotPool(potPool.address, {from: governance});
     await potPool.setRewardDistribution([strategy.address], true, {from: governance});
     await controller.addToWhitelist(strategy.address, {from: governance});
 
     xGrail = await IXGrail.at("0x3CAaE25Ee616f2C8E13C74dA0813402eae3F496b");
     await xGrail.updateTransferWhitelist(hodlVault.address, true, {from: camelotGovernance});
-
-    await controller.setUniversalLiquidator(addresses.UniversalLiquidator, {from: governance});
-    await controller.setRewardForwarder(addresses.RewardForwarder, {from: governance});
 
     // whale send underlying to farmers
     await setupBalance();
