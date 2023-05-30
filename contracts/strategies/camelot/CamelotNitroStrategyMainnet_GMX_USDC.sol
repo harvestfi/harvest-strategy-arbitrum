@@ -22,7 +22,7 @@ contract CamelotNitroStrategyMainnet_GMX_USDC is CamelotNitroStrategy {
       grail,
       nftPool,
       nitroPool,
-      address(0),
+      address(0xFA10759780304c2B8d34B051C039899dFBbcad7f),
       address(0)
     );
     rewardTokens = [grail];
