@@ -116,8 +116,8 @@ contract CamelotNitroStrategy is BaseUpgradeableStrategy {
     uint256 entireBalance = IERC20(_underlying).balanceOf(address(this));
     IERC20(_underlying).safeApprove(_nftPool, 0);
     IERC20(_underlying).safeApprove(_nftPool, entireBalance);
-    uint256 _posId = posId();
-    if (_posId > 0) {  //We already have a position. Withdraw from staking, add to position, stake again.
+    if (rewardPoolBalance() > 0) {  //We already have a position. Withdraw from staking, add to position, stake again.
+      uint256 _posId = posId();
       INitroPool(_nitroPool).withdraw(_posId);
       INFTPool(_nftPool).addToPosition(_posId, entireBalance);
       INFTPool(_nftPool).safeTransferFrom(address(this), _nitroPool, _posId);

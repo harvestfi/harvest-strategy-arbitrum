@@ -100,9 +100,8 @@ contract CamelotNFTStrategy is BaseUpgradeableStrategy {
     uint256 entireBalance = IERC20(_underlying).balanceOf(address(this));
     IERC20(_underlying).safeApprove(_rewardPool, 0);
     IERC20(_underlying).safeApprove(_rewardPool, entireBalance);
-    uint256 _posId = posId();
-    if (_posId > 0) {  //We already have a position. Withdraw from staking, add to position, stake again.
-      INFTPool(_rewardPool).addToPosition(_posId, entireBalance);
+    if (rewardPoolBalance() > 0) {  //We already have a position. Withdraw from staking, add to position, stake again.
+      INFTPool(_rewardPool).addToPosition(posId(), entireBalance);
     } else {                        //We do not yet have a position. Create a position and store the position ID. Then stake.
       INFTPool(_rewardPool).createPosition(entireBalance, 0);
       uint256 newPosId = INFTPool(_rewardPool).tokenOfOwnerByIndex(address(this), 0);
