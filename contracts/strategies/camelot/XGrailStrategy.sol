@@ -249,18 +249,21 @@ contract XGrailStrategy is BaseUpgradeableStrategy {
         }
 
         for (uint256 i; i < nDecrease; i++) {        //First handle decreases to free up xGrail for increases
-            IXGrail(underlying()).deallocate(decreaseAddresses[i], decreaseAmounts[i], decreaseDatas[i]);
-            if (getCurrentAllocation(decreaseAddresses[i], decreaseDatas[i]) > 0){
-                CurrentAllocation memory newAllocation;
-                newAllocation.allocationAddress = decreaseAddresses[i];
-                newAllocation.amount = getCurrentAllocation(decreaseAddresses[i], decreaseDatas[i]);
-                newAllocation.data = decreaseDatas[i];
-                if (nAllocations >= currentAllocations.length) {
-                    currentAllocations.push(newAllocation);
-                } else {
-                    currentAllocations[nAllocations] = newAllocation;
+            uint256 currentAllocation = getCurrentAllocation(decreaseAddresses[i], decreaseDatas[i]);
+            if (currentAllocation > 0){
+                IXGrail(underlying()).deallocate(decreaseAddresses[i], Math.min(decreaseAmounts[i], currentAllocation), decreaseDatas[i]);
+                if (getCurrentAllocation(decreaseAddresses[i], decreaseDatas[i]) > 0){
+                    CurrentAllocation memory newAllocation;
+                    newAllocation.allocationAddress = decreaseAddresses[i];
+                    newAllocation.amount = getCurrentAllocation(decreaseAddresses[i], decreaseDatas[i]);
+                    newAllocation.data = decreaseDatas[i];
+                    if (nAllocations >= currentAllocations.length) {
+                        currentAllocations.push(newAllocation);
+                    } else {
+                        currentAllocations[nAllocations] = newAllocation;
+                    }
+                    nAllocations += 1;
                 }
-                nAllocations += 1;
             }
         }
 
@@ -282,7 +285,7 @@ contract XGrailStrategy is BaseUpgradeableStrategy {
         }
 
         if (currentAllocations.length > nAllocations) {
-            for (uint256 i; i < currentAllocations.length.sub(nAllocations); i++) {
+            for (uint256 i; i < (currentAllocations.length).sub(nAllocations); i++) {
                 currentAllocations.pop();
             }
         }
@@ -321,7 +324,7 @@ contract XGrailStrategy is BaseUpgradeableStrategy {
         require(totalWeight == 10000, "Total weight");
 
         if (allocationTargets.length > addresses.length) {
-            for (uint256 i; i < allocationTargets.length.sub(addresses.length); i++) {
+            for (uint256 i; i < (allocationTargets.length).sub(addresses.length); i++) {
                 allocationTargets.pop();
             }
         }
