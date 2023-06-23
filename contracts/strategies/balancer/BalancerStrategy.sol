@@ -280,7 +280,6 @@ contract BalancerStrategy is BaseUpgradeableStrategy {
     for(uint256 i = 0; i < rewardTokens.length; i++){
       address token = rewardTokens[i];
       uint256 rewardBalance = IERC20(token).balanceOf(address(this));
-
       if (rewardBalance == 0) {
         continue;
       }
