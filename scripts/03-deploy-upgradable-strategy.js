@@ -24,6 +24,12 @@ async function main() {
   await type2Transaction(strategy.initializeStrategy, addresses.Storage, vaultAddr);
 
   console.log("Deployment complete. New strategy deployed and initialised at", proxy.creates);
+  console.log(
+`{
+  "vault": "${vaultAddr}",
+  "newStrategy": "${proxy.creates}"
+}`
+  )
 }
 
 main()
