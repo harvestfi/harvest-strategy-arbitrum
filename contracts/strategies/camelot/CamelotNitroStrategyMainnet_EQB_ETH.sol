@@ -26,6 +26,6 @@ contract CamelotNitroStrategyMainnet_EQB_ETH is CamelotNitroStrategy {
       address(0xFA10759780304c2B8d34B051C039899dFBbcad7f), //fxGRAIL
       address(0)
     );
-    rewardTokens = [eqb];
+    rewardTokens = [grail, eqb];
   }
 }
