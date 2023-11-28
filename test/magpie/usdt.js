@@ -13,7 +13,7 @@ const IERC20 = artifacts.require("IERC20");
 //const Strategy = artifacts.require("");
 const Strategy = artifacts.require("MagpieStrategyMainnet_USDT");
 
-// Developed and tested at blockNumber 143019700
+// Developed and tested at blockNumber 154943650
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
 describe("Arbitrum Mainnet Magpie USDT", function () {
@@ -23,10 +23,11 @@ describe("Arbitrum Mainnet Magpie USDT", function () {
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x6bfD74C0996F269Bcece59191EFf667b3dFD73b9";
+  let underlyingWhale = "0xeEF7Ea108c30Ee392099b3b5782A795F0BBE2715";
   let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
   let usdt = "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9";
   let wom = "0x7B5EB3940021Ec0e8e463D5dBB4B7B09a89DDF96";
+  let mgp = "0xa61F74247455A40b01b0559ff6274441FAfa22A3";
   let ulOwner = addresses.ULOwner;
 
   // parties in the protocol
@@ -42,7 +43,7 @@ describe("Arbitrum Mainnet Magpie USDT", function () {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9");
+    underlying = await IERC20.at("0x85cEBD962861be410a777755dFa06914de6af003");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -74,7 +75,11 @@ describe("Arbitrum Mainnet Magpie USDT", function () {
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
       "governance": governance,
-      "liquidation": [{ "camelot": [wom, usdt, weth] }, { "camelot": [weth, usdt] }],
+      "liquidation": [
+        { "camelot": [wom, usdt, weth] },
+        { "camelot": [weth, usdt] },
+        { "traderJoe": [mgp, weth] }
+      ],
       "ULOwner": ulOwner
     });
 

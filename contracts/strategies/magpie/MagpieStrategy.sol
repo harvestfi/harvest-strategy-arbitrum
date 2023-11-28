@@ -8,8 +8,12 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../../base/interface/IVault.sol";
 import "../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../../base/interface/IUniversalLiquidator.sol";
-import "./interface/IWombatPoolHelper.sol";
-import "./interface/IMasterMagpie.sol";
+import "../../base/interface/magpie/IWombatPoolHelper.sol";
+import "../../base/interface/magpie/IMasterMagpie.sol";
+import "../../base/interface/magpie/IAsset.sol";
+import "../../base/interface/magpie/IPool.sol";
+
+import "hardhat/console.sol";
 
 contract MagpieStrategy is BaseUpgradeableStrategy {
     using SafeMath for uint256;
@@ -19,12 +23,8 @@ contract MagpieStrategy is BaseUpgradeableStrategy {
         address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
     address public constant harvestMSIG =
         address(0xf3D1A027E858976634F81B7c41B09A05A46EdA21);
-    address public constant wom =
-        address(0x7B5EB3940021Ec0e8e463D5dBB4B7B09a89DDF96);
-    address public constant mgp =
-        address(0xa61F74247455A40b01b0559ff6274441FAfa22A3);
-    address public constant wombatStaking =
-        address(0x3CbFC97f87f534b42bb58276B7b5dCaD29E57EAc);
+    // address public constant wombatStaking =
+    //     address(0x3CbFC97f87f534b42bb58276B7b5dCaD29E57EAc);
 
     // this would be reset on each upgrade
     address[] public rewardTokens;
@@ -46,8 +46,8 @@ contract MagpieStrategy is BaseUpgradeableStrategy {
             harvestMSIG
         );
 
-        address _dpt = IWombatPoolHelper(rewardPool()).depositToken();
-        require(_dpt == _underlying, "Underlying mismatch");
+        address _lpt = IWombatPoolHelper(rewardPool()).lpToken();
+        require(_lpt == _underlying, "Underlying mismatch");
     }
 
     function depositArbCheck() public pure returns (bool) {
@@ -66,9 +66,9 @@ contract MagpieStrategy is BaseUpgradeableStrategy {
     }
 
     function _withdrawUnderlyingFromPool(uint256 amount) internal {      
-        address depositToken = IWombatPoolHelper(rewardPool()).depositToken();
         if (amount > 0) {
             IWombatPoolHelper(rewardPool()).withdraw(amount, 1);
+            _getWomLP();
         }
     }
 
@@ -76,9 +76,11 @@ contract MagpieStrategy is BaseUpgradeableStrategy {
         address underlying_ = underlying();
         address rewardPool_ = rewardPool();
         uint256 entireBalance = IERC20(underlying_).balanceOf(address(this));
-        IERC20(underlying_).safeApprove(wombatStaking, 0);
-        IERC20(underlying_).safeApprove(wombatStaking, entireBalance);
-        IWombatPoolHelper(rewardPool_).deposit(entireBalance, 1);
+        console.log(entireBalance);
+        address staking = IWombatPoolHelper(rewardPool_).wombatStaking();
+        IERC20(underlying_).safeApprove(staking, 0);
+        IERC20(underlying_).safeApprove(staking, entireBalance);
+        IWombatPoolHelper(rewardPool_).depositLP(entireBalance);
     }
 
     function _investAllUnderlying() internal onlyNotPausedInvesting {
@@ -132,7 +134,7 @@ contract MagpieStrategy is BaseUpgradeableStrategy {
                 continue;
             }
 
-            if (token == wom) {
+            if (token != _rewardToken) {
                 IERC20(token).safeApprove(_universalLiquidator, 0);
                 IERC20(token).safeApprove(_universalLiquidator, rewardBalance);
                 IUniversalLiquidator(_universalLiquidator).swap(
@@ -155,9 +157,9 @@ contract MagpieStrategy is BaseUpgradeableStrategy {
             return;
         }
 
-        address _underlying = underlying();
+        address depositToken = IWombatPoolHelper(rewardPool()).depositToken();
 
-        if (_underlying != _rewardToken) {
+        if (depositToken != _rewardToken) {
             IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
             IERC20(_rewardToken).safeApprove(
                 _universalLiquidator,
@@ -165,12 +167,34 @@ contract MagpieStrategy is BaseUpgradeableStrategy {
             );
             IUniversalLiquidator(_universalLiquidator).swap(
                 _rewardToken,
-                _underlying,
+                depositToken,
                 remainingRewardBalance,
                 1,
                 address(this)
             );
         }
+
+        _getWomLP();
+    }
+
+    function _getWomLP() internal {
+        address _underlying = underlying();
+        address ulToken = IAsset(_underlying).underlyingToken();
+        uint256 balance = IERC20(ulToken).balanceOf(address(this));
+        if (balance == 0) {
+            return;
+        }
+        address pool = IAsset(_underlying).pool();
+        IERC20(ulToken).safeApprove(pool, 0);
+        IERC20(ulToken).safeApprove(pool, balance);
+        IPool(pool).deposit(
+            ulToken,
+            balance,
+            1,
+            address(this),
+            block.timestamp,
+            false
+        );
     }
 
     function _claimRewards() internal {
@@ -190,7 +214,6 @@ contract MagpieStrategy is BaseUpgradeableStrategy {
         _claimRewards();
         _liquidateReward();
         address underlying_ = underlying();
-        address depositToken = IWombatPoolHelper(rewardPool()).depositToken();
 
         IERC20(underlying_).safeTransfer(
             vault(),
