@@ -26,5 +26,7 @@ interface IWombatPoolHelper {
 
     function depositLP(uint256 _lpAmount) external;
 
+    function withdrawLP(uint256 _lpAmount, bool _harvest) external;
+
     function harvest() external;
 }

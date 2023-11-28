@@ -13,8 +13,6 @@ import "../../base/interface/magpie/IMasterMagpie.sol";
 import "../../base/interface/magpie/IAsset.sol";
 import "../../base/interface/magpie/IPool.sol";
 
-import "hardhat/console.sol";
-
 contract MagpieStrategy is BaseUpgradeableStrategy {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
@@ -67,8 +65,8 @@ contract MagpieStrategy is BaseUpgradeableStrategy {
 
     function _withdrawUnderlyingFromPool(uint256 amount) internal {      
         if (amount > 0) {
-            IWombatPoolHelper(rewardPool()).withdraw(amount, 1);
-            _getWomLP();
+            IWombatPoolHelper(rewardPool()).withdrawLP(amount, false);
+            // _getWomLP();
         }
     }
 
@@ -76,7 +74,6 @@ contract MagpieStrategy is BaseUpgradeableStrategy {
         address underlying_ = underlying();
         address rewardPool_ = rewardPool();
         uint256 entireBalance = IERC20(underlying_).balanceOf(address(this));
-        console.log(entireBalance);
         address staking = IWombatPoolHelper(rewardPool_).wombatStaking();
         IERC20(underlying_).safeApprove(staking, 0);
         IERC20(underlying_).safeApprove(staking, entireBalance);
