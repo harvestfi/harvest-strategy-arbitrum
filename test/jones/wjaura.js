@@ -7,24 +7,24 @@ const {
 } = require("../utilities/hh-utils.js");
 
 const addresses = require("../test-config.js");
+const { send } = require("@openzeppelin/test-helpers");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("LodestarFoldStrategyV2Mainnet_ETH");
+const Strategy = artifacts.require("JonesStrategyMainnet_wjAURA");
 
-// Developed and tested at blockNumber 154613000
+// Developed and tested at blockNumber 155589100
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Arbitrum Mainnet Lodestar Fold ETH V2", function() {
+describe("Arbitrum Mainnet Jones wjAURA", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0xDcFa2dF4d2F469F4c204b703391378731d16bC88";
-  let lode = "0xF19547f9ED24aA66b03c3a552D181Ae334FBb8DB";
+  let underlyingWhale = "0x65F8b250Ca51215a776b9BCB69f61Df92DA2a64e";
   let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
 
   // parties in the protocol
@@ -40,7 +40,7 @@ describe("Arbitrum Mainnet Lodestar Fold ETH V2", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0x82aF49447D8a07e3bd95BD0d56f35241523fBab1");
+    underlying = await IERC20.at("0xcB9295ac65De60373A25C18d2044D517ed5da8A9");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -66,15 +66,13 @@ describe("Arbitrum Mainnet Lodestar Fold ETH V2", function() {
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": "0x2b70238022589f17E7b266BC753E74027D57009F",
+      "existingVaultAddress": null,
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
-      "announceStrategy": true,
       "underlying": underlying,
       "governance": governance,
       "liquidation": [
-        {"camelot": [lode, weth]},
-        {"camelot": [weth, lode]},
+        {"uniV3": [weth, underlying.address]},
       ]
     });
 

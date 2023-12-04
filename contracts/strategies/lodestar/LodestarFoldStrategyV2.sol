@@ -336,6 +336,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     uint256 borrowTarget = balance.mul(_borrowNum).div(_denom.sub(_borrowNum));
     uint256 borrowDiff;
     if (borrowed > borrowTarget) {
+      _redeemPartial(0);
       borrowDiff = 0;
     } else {
       borrowDiff = borrowTarget.sub(borrowed);
