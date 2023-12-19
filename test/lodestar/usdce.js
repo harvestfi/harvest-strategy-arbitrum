@@ -12,7 +12,7 @@ const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("LodestarFoldStrategyMainnet_USDCe");
+const Strategy = artifacts.require("LodestarFoldStrategyV2Mainnet_USDCe");
 
 // Developed and tested at blockNumber 128892450
 
@@ -93,6 +93,8 @@ describe("Arbitrum Mainnet Lodestar Fold USDCe", function() {
 
       for (let i = 0; i < hours; i++) {
         console.log("loop ", i);
+
+        await vault.withdraw(farmerOldBalance.div(10), {from: farmer1});
 
         oldSharePrice = new BigNumber(await vault.getPricePerFullShare());
         await controller.doHardWork(vault.address, { from: governance });

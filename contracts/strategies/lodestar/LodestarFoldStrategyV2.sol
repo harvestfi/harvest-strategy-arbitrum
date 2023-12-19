@@ -349,14 +349,21 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       return;
     }
 
-    address[] memory tokens = new address[](1);
-    uint256[] memory amounts = new uint256[](1);
-    bytes memory userData = abi.encode(0);
-    tokens[0] = underlying();
-    amounts[0] = borrowDiff;
-    makingFlashDeposit = true;
-    IBVault(bVault).flashLoan(address(this), tokens, amounts, userData);
-    makingFlashDeposit = false;
+    address _underlying = underlying();
+    uint256 balancerBalance = IERC20(_underlying).balanceOf(bVault);
+
+    if (borrowDiff > balancerBalance) {
+      _depositNoFlash(supplied, borrowed, _cToken, _denom, _borrowNum);
+    } else {
+      address[] memory tokens = new address[](1);
+      uint256[] memory amounts = new uint256[](1);
+      bytes memory userData = abi.encode(0);
+      tokens[0] = underlying();
+      amounts[0] = borrowDiff;
+      makingFlashDeposit = true;
+      IBVault(bVault).flashLoan(address(this), tokens, amounts, userData);
+      makingFlashDeposit = false;
+    }
   }
 
   function _redeemWithFlashloan(uint256 amount, uint256 borrowTargetFactorNumerator) internal {
@@ -372,15 +379,22 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
         newBorrowTarget = newBalance.mul(borrowTargetFactorNumerator).div(factorDenominator().sub(borrowTargetFactorNumerator));
     }
     uint256 borrowDiff = borrowed.sub(newBorrowTarget);
+    address _underlying = underlying();
+    uint256 balancerBalance = IERC20(_underlying).balanceOf(bVault);
 
-    address[] memory tokens = new address[](1);
-    uint256[] memory amounts = new uint256[](1);
-    bytes memory userData = abi.encode(0);
-    tokens[0] = underlying();
-    amounts[0] = borrowDiff;
-    makingFlashWithdrawal = true;
-    IBVault(bVault).flashLoan(address(this), tokens, amounts, userData);
-    makingFlashWithdrawal = false;
+    if (borrowDiff > balancerBalance) {
+      _redeemNoFlash(amount, supplied, borrowed, _cToken, factorDenominator(), borrowTargetFactorNumerator);
+    } else {
+      address[] memory tokens = new address[](1);
+      uint256[] memory amounts = new uint256[](1);
+      bytes memory userData = abi.encode(0);
+      tokens[0] = underlying();
+      amounts[0] = borrowDiff;
+      makingFlashWithdrawal = true;
+      IBVault(bVault).flashLoan(address(this), tokens, amounts, userData);
+      makingFlashWithdrawal = false;
+      _redeem(amount);
+    }
   }
 
   function receiveFlashLoan(IERC20[] memory /*tokens*/, uint256[] memory amounts, uint256[] memory feeAmounts, bytes memory /*userData*/) external {
@@ -404,6 +418,56 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     }
     balance = IERC20(_underlying).balanceOf(address(this));
     IERC20(_underlying).safeTransfer(bVault, toRepay);
+  }
+
+  function _depositNoFlash(uint256 supplied, uint256 borrowed, address _cToken, uint256 _denom, uint256 _borrowNum) internal {
+    address _underlying = underlying();
+    uint256 balance = supplied.sub(borrowed);
+    uint256 borrowTarget = balance.mul(_borrowNum).div(_denom.sub(_borrowNum));
+    while (borrowed < borrowTarget) {
+      uint256 wantBorrow = borrowTarget.sub(borrowed);
+      uint256 maxBorrow = supplied.mul(collateralFactorNumerator()).div(_denom).sub(borrowed);
+      _borrow(Math.min(wantBorrow, maxBorrow));
+      uint256 underlyingBalance = IERC20(_underlying).balanceOf(address(this));
+      if (underlyingBalance > 0) {
+        _supply(underlyingBalance);
+      }
+      //update parameters
+      borrowed = CTokenInterface(_cToken).borrowBalanceCurrent(address(this));
+      supplied = CTokenInterface(_cToken).balanceOfUnderlying(address(this));
+      balance = supplied.sub(borrowed);
+    }
+  }
+
+  function _redeemNoFlash(uint256 amount, uint256 supplied, uint256 borrowed, address _cToken, uint256 _denom, uint256 _borrowNum) internal {
+    address _underlying = underlying();
+    uint256 newBorrowTarget;
+    {
+        uint256 oldBalance = supplied.sub(borrowed);
+        uint256 newBalance = oldBalance.sub(amount);
+        newBorrowTarget = newBalance.mul(_borrowNum).div(_denom.sub(_borrowNum));
+    }
+    while (borrowed > newBorrowTarget) {
+      uint256 requiredCollateral = borrowed.mul(_denom).div(collateralFactorNumerator());
+      uint256 toRepay = borrowed.sub(newBorrowTarget);
+      // redeem just as much as needed to repay the loan
+      // supplied - requiredCollateral = max redeemable, amount + repay = needed
+      uint256 toRedeem = Math.min(supplied.sub(requiredCollateral), amount.add(toRepay));
+      _redeem(toRedeem);
+      // now we can repay our borrowed amount
+      uint256 underlyingBalance = IERC20(_underlying).balanceOf(address(this));
+      _repay(Math.min(toRepay, underlyingBalance));
+      // update the parameters
+      borrowed = CTokenInterface(_cToken).borrowBalanceCurrent(address(this));
+      supplied = CTokenInterface(_cToken).balanceOfUnderlying(address(this));
+    }
+    uint256 underlyingBalance = IERC20(_underlying).balanceOf(address(this));
+    if (underlyingBalance < amount) {
+      uint256 toRedeem = amount.sub(underlyingBalance);
+      uint256 balance = supplied.sub(borrowed);
+      // redeem the most we can redeem
+      _redeem(Math.min(toRedeem, balance));
+    }
   }
 
   // updating collateral factor
