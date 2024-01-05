@@ -7,26 +7,29 @@ const {
 } = require("../utilities/hh-utils.js");
 
 const addresses = require("../test-config.js");
-const { send } = require("@openzeppelin/test-helpers");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("LodestarFoldStrategyV2Mainnet_USDCe");
+const Strategy = artifacts.require("XGrailStrategyV2Mainnet_XGrail");
+const IXGrail = artifacts.require("IXGrail")
 
-// Developed and tested at blockNumber 128892450
+// Developed and tested at blockNumber 159369800
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Arbitrum Mainnet Lodestar Fold USDCe", function() {
+describe("Arbitrum Mainnet Camelot xGRAIL V2", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x1997DEfcEb8Cb4b5024f3Fb2a48503899A456e51";
-  let lode = "0xF19547f9ED24aA66b03c3a552D181Ae334FBb8DB";
+  let underlyingWhale = "0x0E9D806e354eB4235958A294FDEf09D18862C02c";
+  let camelotGovernance = "0x460d0F7B75412592D14440857f715ec28861c2D7";
   let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
+  let usdc = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
+  let usdce = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8";
+  let grail = "0x3d9907F9a368ad0a51Be60f7Da3b97cf940982D8";
 
   // parties in the protocol
   let governance;
@@ -41,7 +44,7 @@ describe("Arbitrum Mainnet Lodestar Fold USDCe", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8");
+    underlying = await IERC20.at("0x3CAaE25Ee616f2C8E13C74dA0813402eae3F496b");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -60,22 +63,25 @@ describe("Arbitrum Mainnet Lodestar Fold USDCe", function() {
     farmer1 = accounts[1];
 
     // impersonate accounts
-    await impersonates([governance, underlyingWhale]);
+    await impersonates([governance, underlyingWhale, camelotGovernance]);
 
     let etherGiver = accounts[9];
     await web3.eth.sendTransaction({ from: etherGiver, to: governance, value: 10e18});
+    await web3.eth.sendTransaction({ from: etherGiver, to: camelotGovernance, value: 10e18});
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": null,
+      "existingVaultAddress": "0xFA10759780304c2B8d34B051C039899dFBbcad7f",
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
+      "upgradeStrategy": true,
       "underlying": underlying,
       "governance": governance,
-      "liquidation": [
-        {"camelot": [lode, weth]}
-      ]
+      "liquidation": [{"uniV3": [usdc, usdce]}, {"uniV3": [usdce, usdc]}]
     });
+
+    let xGrail = await IXGrail.at("0x3CAaE25Ee616f2C8E13C74dA0813402eae3F496b");
+    await xGrail.updateTransferWhitelist(underlyingWhale, true, {from: camelotGovernance});
 
     // whale send underlying to farmers
     await setupBalance();
@@ -84,6 +90,7 @@ describe("Arbitrum Mainnet Lodestar Fold USDCe", function() {
   describe("Happy path", function() {
     it("Farmer should earn money", async function() {
       let farmerOldBalance = new BigNumber(await underlying.balanceOf(farmer1));
+      console.log(farmerOldBalance.toFixed())
       await depositVault(farmer1, underlying, vault, farmerBalance);
 
       let hours = 10;
@@ -93,8 +100,6 @@ describe("Arbitrum Mainnet Lodestar Fold USDCe", function() {
 
       for (let i = 0; i < hours; i++) {
         console.log("loop ", i);
-
-        await vault.withdraw(farmerOldBalance.div(10), {from: farmer1});
 
         oldSharePrice = new BigNumber(await vault.getPricePerFullShare());
         await controller.doHardWork(vault.address, { from: governance });
@@ -112,6 +117,9 @@ describe("Arbitrum Mainnet Lodestar Fold USDCe", function() {
 
         await Utils.advanceNBlock(blocksPerHour);
       }
+      await vault.withdraw((new BigNumber(await vault.balanceOf(farmer1)).div(2)).toFixed(), {from: farmer1});
+      farmerBalance = new BigNumber(await underlying.balanceOf(farmer1));
+      console.log("Partial withdrawal:", farmerBalance.toFixed());
       await vault.withdraw(new BigNumber(await vault.balanceOf(farmer1)).toFixed(), { from: farmer1 });
       let farmerNewBalance = new BigNumber(await underlying.balanceOf(farmer1));
       Utils.assertBNGt(farmerNewBalance, farmerOldBalance);
