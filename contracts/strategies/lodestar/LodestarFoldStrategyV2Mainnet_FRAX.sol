@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "./LodestarFoldStrategyV2.sol";
 
-contract LodestarFoldStrategyV2Mainnet_ARB is LodestarFoldStrategyV2 {
+contract LodestarFoldStrategyV2Mainnet_FRAX is LodestarFoldStrategyV2 {
 
   constructor() public {}
 
@@ -12,10 +12,11 @@ contract LodestarFoldStrategyV2Mainnet_ARB is LodestarFoldStrategyV2 {
     address _storage,
     address _vault
   ) public initializer {
-    address underlying = address(0x912CE59144191C1204E64559FE8253a0e49E6548);
-    address cToken = address(0x8991d64fe388fA79A4f7Aa7826E8dA09F0c3C96a);
+    address underlying = address(0x17FC002b466eEc40DaE837Fc4bE5c67993ddBd6F);
+    address cToken = address(0xD12d43Cdf498e377D3bfa2c6217f05B466E14228);
     address comptroller = address(0xa86DD95c210dd186Fa7639F93E4177E97d057576);
     address lode = address(0xF19547f9ED24aA66b03c3a552D181Ae334FBb8DB);
+    address arb = address(0x912CE59144191C1204E64559FE8253a0e49E6548);
     LodestarFoldStrategyV2.initializeBaseStrategy(
       _storage,
       underlying,
@@ -23,11 +24,11 @@ contract LodestarFoldStrategyV2Mainnet_ARB is LodestarFoldStrategyV2 {
       cToken,
       comptroller,
       lode,
-      680,
-      700,
+      730,
+      750,
       1000,
       true
     );
-    rewardTokens = [lode];
+    rewardTokens = [lode, arb];
   }
 }
