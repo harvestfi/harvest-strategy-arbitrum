@@ -260,6 +260,9 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
   * Supplies to Moonwel
   */
   function _supply(uint256 amount) internal {
+    if (amount == 0){
+      return;
+    }
     address _underlying = underlying();
     address _cToken = cToken();
     uint256 balance = IERC20(_underlying).balanceOf(address(this));
@@ -280,6 +283,9 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
   * Borrows against the collateral
   */
   function _borrow(uint256 amountUnderlying) internal {
+    if (amountUnderlying == 0){
+      return;
+    }
     // Borrow, check the balance for this contract's address
     CErc20Interface(cToken()).borrow(amountUnderlying);
     if(underlying() == weth){
@@ -288,6 +294,9 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
   }
 
   function _redeem(uint256 amountUnderlying) internal {
+    if (amountUnderlying == 0){
+      return;
+    }
     CErc20Interface(cToken()).redeemUnderlying(amountUnderlying);
     if(underlying() == weth){
       IWETH(weth).deposit{value: address(this).balance}();
@@ -295,6 +304,9 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
   }
 
   function _repay(uint256 amountUnderlying) internal {
+    if (amountUnderlying == 0){
+      return;
+    }
     address _underlying = underlying();
     address _cToken = cToken();
     if (_underlying == weth) {
@@ -340,13 +352,17 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       borrowDiff = 0;
     } else {
       borrowDiff = borrowTarget.sub(borrowed);
-    }
-
-    uint256 totalBorrows = CTokenInterface(_cToken).totalBorrowsCurrent();
-    uint256 borrowCap = ComptrollerInterface(rewardPool()).borrowCaps(_cToken);
-
-    if (totalBorrows.add(borrowDiff) > borrowCap) {
-      return;
+      uint256 borrowCap = ComptrollerInterface(rewardPool()).borrowCaps(_cToken);
+      uint256 totalBorrows = CTokenInterface(_cToken).totalBorrows();
+      uint256 borrowAvail;
+      if (totalBorrows < borrowCap) {
+        borrowAvail = borrowCap.sub(totalBorrows).sub(1);
+      } else {
+        borrowAvail = 0;
+      }
+      if (borrowDiff > borrowAvail){
+        borrowDiff = borrowAvail;
+      }
     }
 
     address _underlying = underlying();
@@ -378,7 +394,12 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
         uint256 newBalance = oldBalance.sub(amount);
         newBorrowTarget = newBalance.mul(borrowTargetFactorNumerator).div(factorDenominator().sub(borrowTargetFactorNumerator));
     }
-    uint256 borrowDiff = borrowed.sub(newBorrowTarget);
+    uint256 borrowDiff;
+    if (borrowed < newBorrowTarget) {
+      borrowDiff = 0;
+    } else {
+      borrowDiff = borrowed.sub(newBorrowTarget);
+    }
     address _underlying = underlying();
     uint256 balancerBalance = IERC20(_underlying).balanceOf(bVault);
 
@@ -424,6 +445,19 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     address _underlying = underlying();
     uint256 balance = supplied.sub(borrowed);
     uint256 borrowTarget = balance.mul(_borrowNum).div(_denom.sub(_borrowNum));
+    {
+      uint256 borrowCap = ComptrollerInterface(rewardPool()).borrowCaps(_cToken);
+      uint256 totalBorrows = CTokenInterface(_cToken).totalBorrows();
+      uint256 borrowAvail;
+      if (totalBorrows < borrowCap) {
+        borrowAvail = borrowCap.sub(totalBorrows).sub(1);
+      } else {
+        borrowAvail = 0;
+      }
+      if (borrowTarget.sub(borrowed) > borrowAvail) {
+        borrowTarget = borrowed.add(borrowAvail);
+      }
+    }
     while (borrowed < borrowTarget) {
       uint256 wantBorrow = borrowTarget.sub(borrowed);
       uint256 maxBorrow = supplied.mul(collateralFactorNumerator()).div(_denom).sub(borrowed);
