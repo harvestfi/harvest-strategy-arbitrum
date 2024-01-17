@@ -10,22 +10,21 @@ const addresses = require("../test-config.js");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
-const Strategy = artifacts.require("RadpieStrategyMainnet_DAI");
+const Strategy = artifacts.require("RadpieStrategyMainnet_ARB");
 
-// Developed and tested at blockNumber 144713000
+// Developed and tested at blockNumber 170862300
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Arbitrum Mainnet Radpie DAI", function () {
+describe("Arbitrum Mainnet Radpie ARB", function () {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  // let underlyingWhale = "0x8494ea6211e36fab1aa408c4e925dadf4c6db4c8";
-  let underlyingWhale = "0xF60B7C3282Ed70e00686e5f54a6dBF7028Cbc6BB";
+  let underlyingWhale = "0xe68ee8a12c611fd043fb05d65e1548dc1383f2b9";
   let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
-  let dai = "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1";
+  let arb = "0x912CE59144191C1204E64559FE8253a0e49E6548";
   let esrdnt = "0x1cC128a5d977B3BA7d598f01dB20A2116F59ef68";
   let rdnt = "0x0C4681e6C0235179ec3D4F4fc4DF3d14FDD96017";
   let ulOwner = addresses.ULOwner;
@@ -43,7 +42,7 @@ describe("Arbitrum Mainnet Radpie DAI", function () {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1");
+    underlying = await IERC20.at("0x912CE59144191C1204E64559FE8253a0e49E6548");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -77,7 +76,7 @@ describe("Arbitrum Mainnet Radpie DAI", function () {
       "governance": governance,
       "liquidation": [
         { "camelot": [esrdnt, rdnt, weth] },
-        { "camelot": [weth, dai] }
+        { "camelot": [weth, arb] }
       ],
       "ULOwner": ulOwner
     });

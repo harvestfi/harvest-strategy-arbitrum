@@ -68,9 +68,7 @@ contract RadpieStrategy is BaseUpgradeableStrategy {
     function _withdrawUnderlyingFromPool(uint256 amount) internal {  
         address underlying_ = underlying();
         uint256 totalBal = IRadpiePoolHelper(poolHelper).balance(underlying_, address(this));
-        console.log("amount: ", amount);
-        console.log("totalBal: ", totalBal);
-        if (amount > 0 && totalBal > amount) {
+        if (amount > 0 && totalBal >= amount) {
             IRadpiePoolHelper(poolHelper).withdrawAsset(underlying_, amount);
         } else {
             IRadpiePoolHelper(poolHelper).withdrawAsset(underlying_, totalBal);
@@ -180,10 +178,7 @@ contract RadpieStrategy is BaseUpgradeableStrategy {
     }
 
     function _claimRewards() internal {
-        uint256 availESRDNT = IRDNTRewardManager(RDNTRewardManger).entitledRDNT(address(this));
-        if(availESRDNT > 0 ) {
-            IRDNTRewardManager(RDNTRewardManger).redeemEntitledRDNT();
-        }
+        IRDNTRewardManager(RDNTRewardManger).redeemEntitledRDNT();
     }
 
     /*
