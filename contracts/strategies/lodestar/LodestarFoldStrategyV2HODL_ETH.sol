@@ -14,7 +14,7 @@ import "../../base/interface/lodestar/ComptrollerInterface.sol";
 import "../../base/interface/balancer/IBVault.sol";
 import "../../base/interface/weth/IWETH.sol";
 
-contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
+contract LodestarFoldStrategyV2HODL_ETH is BaseUpgradeableStrategy {
 
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
@@ -71,7 +71,7 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
       _underlying,
       _vault,
       _comptroller,
-      weth,
+      lode,
       harvestMSIG
     );
     _setCToken(_cToken);
