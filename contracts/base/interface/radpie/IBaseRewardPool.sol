@@ -47,4 +47,6 @@ interface IBaseRewardPool {
     function updateFor(address account) external;
 
     function updateRewardQueuer(address _rewardManager, bool _allowed) external;
+
+    function receiptToken() external view returns (address);
 }

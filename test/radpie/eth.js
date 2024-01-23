@@ -10,12 +10,12 @@ const addresses = require("../test-config.js");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
-const Strategy = artifacts.require("RadpieStrategyMainnet_ARB");
+const Strategy = artifacts.require("RadpieStrategyMainnet_ETH");
 
 // Developed and tested at blockNumber 173360150
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Arbitrum Mainnet Radpie ARB", function () {
+describe("Arbitrum Mainnet Radpie ETH", function () {
   let accounts;
 
   // external contracts
@@ -37,7 +37,7 @@ describe("Arbitrum Mainnet Radpie ARB", function () {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xf6da879761961ABD22177242904a6E12BB034C22");
+    underlying = await IERC20.at("0x5477B2E46DD6D2D8E52f8329f0DC283F6f768cFa");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 

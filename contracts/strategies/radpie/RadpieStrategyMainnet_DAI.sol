@@ -12,8 +12,8 @@ contract RadpieStrategyMainnet_DAI is RadpieStrategy {
     address _storage,
     address _vault
   ) public initializer {
-    address underlying = address(0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1); // DAI address
-    address rewardPool = address(0x8384fCdA31054efc8B4899d81F510e868f747029); // DAI Pool Rewarder
+    address underlying = address(0x8409DE8E98F80D0E40F42849eF0923c2493BEeAd); //DAI_rDAI
+    address rewardPool = address(0xD97EbDd4a104e8336760C6350930a96A9A659A66); //RDNT reward manager
     address esrdnt = address(0x1cC128a5d977B3BA7d598f01dB20A2116F59ef68);
     RadpieStrategy.initializeBaseStrategy(
       _storage,

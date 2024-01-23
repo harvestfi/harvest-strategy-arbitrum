@@ -9,9 +9,12 @@ import "../../base/interface/IVault.sol";
 import "../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../../base/interface/IUniversalLiquidator.sol";
 import "../../base/interface/radpie/IBaseRewardPool.sol";
+import "../../base/interface/radpie/IMasterRadpie.sol";
+import "../../base/interface/radpie/IRadiantStaking.sol";
 import "../../base/interface/radpie/IRadpiePoolHelper.sol";
 import "../../base/interface/radpie/IRDNTRewardManager.sol";
-import "hardhat/console.sol";
+import "../../base/interface/radpie/IRadpieReceiptToken.sol";
+import "../../base/interface/weth/IWETH.sol";
 
 contract RadpieStrategy is BaseUpgradeableStrategy {
     using SafeMath for uint256;
@@ -22,12 +25,16 @@ contract RadpieStrategy is BaseUpgradeableStrategy {
     address public constant harvestMSIG =
         address(0xf3D1A027E858976634F81B7c41B09A05A46EdA21);
     address public constant poolHelper = address(0x4ade86667760f45cBd5255a5bc8B4c3a703dDA7a);
-    address public constant RDNTRewardManger = address(0xD97EbDd4a104e8336760C6350930a96A9A659A66);
+
+    // additional storage slots (on top of BaseUpgradeableStrategy ones) are defined here
+    bytes32 internal constant _ASSET_SLOT = 0xa65e2b7ef56fbca2772a97c50d792e1f1d2e42e2171db2823e7473841a7c3686;
 
     // this would be reset on each upgrade
     address[] public rewardTokens;
 
-    constructor() public BaseUpgradeableStrategy() {}
+    constructor() public BaseUpgradeableStrategy() {
+        assert(_ASSET_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.asset")) - 1));
+    }
 
     function initializeBaseStrategy(
         address _storage,
@@ -44,10 +51,8 @@ contract RadpieStrategy is BaseUpgradeableStrategy {
             harvestMSIG
         );
 
-        (address[] memory bonusTokenAddresses, ) = IBaseRewardPool(rewardPool()).rewardTokenInfos();
-        address _lpt = bonusTokenAddresses[0];
-
-        require(_lpt == _underlying, "Underlying mismatch");
+        address _asset = IRadpieReceiptToken(_underlying).underlying();
+        _setAsset(_asset);
     }
 
     function depositArbCheck() public pure returns (bool) {
@@ -55,39 +60,19 @@ contract RadpieStrategy is BaseUpgradeableStrategy {
     }
 
     function _rewardPoolBalance() internal view returns (uint256 balance) {
-        balance = IBaseRewardPool(rewardPool()).balanceOf(address(this));
+        balance = IRadpieReceiptToken(underlying()).balanceOf(address(this));
     }
 
-    function _emergencyExitRewardPool() internal {
-        uint256 stakedBalance = _rewardPoolBalance();
-        if (stakedBalance != 0) {
-            _withdrawUnderlyingFromPool(stakedBalance);
-        }
-    }
-
-    function _withdrawUnderlyingFromPool(uint256 amount) internal {  
-        address underlying_ = underlying();
-        uint256 totalBal = IRadpiePoolHelper(poolHelper).balance(underlying_, address(this));
-        if (amount > 0 && totalBal >= amount) {
-            IRadpiePoolHelper(poolHelper).withdrawAsset(underlying_, amount);
+    function _depositAsset() internal {
+        address _asset = asset();
+        uint256 entireBalance = IERC20(_asset).balanceOf(address(this));
+        if (_asset == weth){
+            IWETH(weth).withdraw(entireBalance);
+            IRadpiePoolHelper(poolHelper).depositAsset{value: entireBalance}(_asset, entireBalance);
         } else {
-            IRadpiePoolHelper(poolHelper).withdrawAsset(underlying_, totalBal);
-        }
-    }
-
-    function _enterRewardPool() internal {
-        address underlying_ = underlying();
-        uint256 entireBalance = IERC20(underlying_).balanceOf(address(this));
-        IERC20(underlying_).safeApprove(poolHelper, 0);
-        IERC20(underlying_).safeApprove(poolHelper, entireBalance);
-        IRadpiePoolHelper(poolHelper).depositAsset(underlying_, entireBalance);
-    }
-
-    function _investAllUnderlying() internal onlyNotPausedInvesting {
-        // this check is needed, because most of the SNX reward pools will revert if
-        // you try to stake(0).
-        if (IERC20(underlying()).balanceOf(address(this)) > 0) {
-            _enterRewardPool();
+            IERC20(_asset).safeApprove(poolHelper, 0);
+            IERC20(_asset).safeApprove(poolHelper, entireBalance);
+            IRadpiePoolHelper(poolHelper).depositAsset(_asset, entireBalance);
         }
     }
 
@@ -97,7 +82,6 @@ contract RadpieStrategy is BaseUpgradeableStrategy {
      *   The function is only used for emergency to exit the pool
      */
     function emergencyExit() public onlyGovernance {
-        _emergencyExitRewardPool();
         _setPausedInvesting(true);
     }
 
@@ -157,9 +141,9 @@ contract RadpieStrategy is BaseUpgradeableStrategy {
             return;
         }
 
-        address underlying_ = underlying();
+        address _asset = asset();
 
-        if (underlying_ != _rewardToken) {
+        if (_asset != _rewardToken) {
             IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
             IERC20(_rewardToken).safeApprove(
                 _universalLiquidator,
@@ -167,25 +151,30 @@ contract RadpieStrategy is BaseUpgradeableStrategy {
             );
             IUniversalLiquidator(_universalLiquidator).swap(
                 _rewardToken,
-                underlying_,
+                _asset,
                 remainingRewardBalance,
                 1,
                 address(this)
             );
         }
 
-        _investAllUnderlying();
+        _depositAsset();
     }
 
     function _claimRewards() internal {
-        IRDNTRewardManager(RDNTRewardManger).redeemEntitledRDNT();
+        address _radiantStaking = IRadpiePoolHelper(poolHelper).radiantStaking();
+        address[] memory _assets = new address[](1);
+        _assets[0] = asset();
+
+        IRadiantStaking(_radiantStaking).batchHarvestEntitledRDNT(_assets, false);
+        IRDNTRewardManager(rewardPool()).redeemEntitledRDNT();
+        IMasterRadpie(IRadpieReceiptToken(underlying()).masterRadpie()).multiclaim(_assets);
     }
 
     /*
      *   Withdraws all the asset to the vault
      */
     function withdrawAllToVault() public restricted {
-        _withdrawUnderlyingFromPool(_rewardPoolBalance());
         _claimRewards();
         _liquidateReward();
         address underlying_ = underlying();
@@ -200,20 +189,7 @@ contract RadpieStrategy is BaseUpgradeableStrategy {
      *   Withdraws all the asset to the vault
      */
     function withdrawToVault(uint256 _amount) public restricted {
-        // Typically there wouldn't be any amount here
-        // however, it is possible because of the emergencyExit
-        address underlying_ = underlying();
-        uint256 entireBalance = IERC20(underlying_).balanceOf(address(this));
-
-        if (_amount > entireBalance) {
-            // While we have the check above, we still using SafeMath below
-            // for the peace of mind (in case something gets changed in between)
-            uint256 needToWithdraw = _amount.sub(entireBalance);
-            uint256 toWithdraw = Math.min(_rewardPoolBalance(), needToWithdraw);
-            _withdrawUnderlyingFromPool(toWithdraw);
-        }
-
-        IERC20(underlying_).safeTransfer(vault(), _amount);
+        IERC20(underlying()).safeTransfer(vault(), _amount);
     }
 
     /*
@@ -221,17 +197,7 @@ contract RadpieStrategy is BaseUpgradeableStrategy {
      *   amount of reward that is accrued.
      */
     function investedUnderlyingBalance() external view returns (uint256) {
-        if (rewardPool() == address(0)) {
-            return IERC20(underlying()).balanceOf(address(this));
-        }
-        // Adding the amount locked in the reward pool and the amount that is somehow in this contract
-        // both are in the units of "underlying"
-        // The second part is needed because there is the emergency exit mechanism
-        // which would break the assumption that all the funds are always inside of the reward pool
-        return
-            _rewardPoolBalance().add(
-                IERC20(underlying()).balanceOf(address(this))
-            );
+        return IERC20(underlying()).balanceOf(address(this));
     }
 
     /*
@@ -262,7 +228,6 @@ contract RadpieStrategy is BaseUpgradeableStrategy {
     function doHardWork() external onlyNotPausedInvesting restricted {
         _claimRewards();
         _liquidateReward();
-        _investAllUnderlying();
     }
 
     /**
@@ -273,14 +238,17 @@ contract RadpieStrategy is BaseUpgradeableStrategy {
         _setSell(s);
     }
 
-    /**
-     * Sets the minimum amount of CRV needed to trigger a sale.
-     */
-    function setSellFloor(uint256 floor) public onlyGovernance {
-        _setSellFloor(floor);
+    function _setAsset(address _value) internal {
+        setAddress(_ASSET_SLOT, _value);
+    }
+
+    function asset() public view returns (address) {
+        return getAddress(_ASSET_SLOT);
     }
 
     function finalizeUpgrade() external onlyGovernance {
         _finalizeUpgrade();
     }
+
+    receive() external payable {}
 }

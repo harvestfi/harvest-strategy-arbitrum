@@ -10,12 +10,12 @@ const addresses = require("../test-config.js");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
-const Strategy = artifacts.require("RadpieStrategyMainnet_ARB");
+const Strategy = artifacts.require("RadpieStrategyMainnet_WBTC");
 
 // Developed and tested at blockNumber 173360150
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Arbitrum Mainnet Radpie ARB", function () {
+describe("Arbitrum Mainnet Radpie WBTC", function () {
   let accounts;
 
   // external contracts
@@ -23,6 +23,8 @@ describe("Arbitrum Mainnet Radpie ARB", function () {
 
   // external setup
   let underlyingWhale = "0xA746B456A137Ac6acC413F3C16D3EF2eA2D0514C";
+  let rdp = "0x54BDBF3cE36f451Ec61493236b8E6213ac87c0f6";
+  let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
 
   // parties in the protocol
   let governance;
@@ -37,7 +39,7 @@ describe("Arbitrum Mainnet Radpie ARB", function () {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xf6da879761961ABD22177242904a6E12BB034C22");
+    underlying = await IERC20.at("0x6c1B07ed05656DEdd90321E94B1cDB26981e65f2");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -68,6 +70,9 @@ describe("Arbitrum Mainnet Radpie ARB", function () {
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
       "governance": governance,
+      "liquidation": [
+        { "camelotV3": [rdp, weth] },
+      ],
     });
 
     // whale send underlying to farmers

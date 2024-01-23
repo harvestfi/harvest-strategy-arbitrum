@@ -9,4 +9,6 @@ interface IRadpiePoolHelper {
     function depositAsset(address _asset, uint256 _amount) external payable;
 
     function withdrawAsset(address _asset, uint256 _amount) external;
+
+    function radiantStaking() external view returns (address);
 }

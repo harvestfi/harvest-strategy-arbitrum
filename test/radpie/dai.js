@@ -12,7 +12,7 @@ const IERC20 = artifacts.require("IERC20");
 
 const Strategy = artifacts.require("RadpieStrategyMainnet_DAI");
 
-// Developed and tested at blockNumber 144713000
+// Developed and tested at blockNumber 173360150
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
 describe("Arbitrum Mainnet Radpie DAI", function () {
@@ -22,13 +22,7 @@ describe("Arbitrum Mainnet Radpie DAI", function () {
   let underlying;
 
   // external setup
-  // let underlyingWhale = "0x8494ea6211e36fab1aa408c4e925dadf4c6db4c8";
-  let underlyingWhale = "0xF60B7C3282Ed70e00686e5f54a6dBF7028Cbc6BB";
-  let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
-  let dai = "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1";
-  let esrdnt = "0x1cC128a5d977B3BA7d598f01dB20A2116F59ef68";
-  let rdnt = "0x0C4681e6C0235179ec3D4F4fc4DF3d14FDD96017";
-  let ulOwner = addresses.ULOwner;
+  let underlyingWhale = "0xA746B456A137Ac6acC413F3C16D3EF2eA2D0514C";
 
   // parties in the protocol
   let governance;
@@ -43,7 +37,7 @@ describe("Arbitrum Mainnet Radpie DAI", function () {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1");
+    underlying = await IERC20.at("0x8409DE8E98F80D0E40F42849eF0923c2493BEeAd");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -62,11 +56,10 @@ describe("Arbitrum Mainnet Radpie DAI", function () {
     farmer1 = accounts[1];
 
     // impersonate accounts
-    await impersonates([governance, underlyingWhale, ulOwner]);
+    await impersonates([governance, underlyingWhale]);
 
     let etherGiver = accounts[9];
     await web3.eth.sendTransaction({ from: etherGiver, to: governance, value: 10e18 });
-    await web3.eth.sendTransaction({ from: etherGiver, to: ulOwner, value: 10e18 });
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
@@ -75,11 +68,6 @@ describe("Arbitrum Mainnet Radpie DAI", function () {
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
       "governance": governance,
-      "liquidation": [
-        { "camelot": [esrdnt, rdnt, weth] },
-        { "camelot": [weth, dai] }
-      ],
-      "ULOwner": ulOwner
     });
 
     // whale send underlying to farmers
