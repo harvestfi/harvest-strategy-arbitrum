@@ -41,8 +41,8 @@ contract XGrailStrategyV3 is BaseUpgradeableStrategy {
     CurrentAllocation[] public currentAllocations;
     TargetAllocation[] public allocationTargets;
     address[] public rewardTokens;
-    mapping(address => bool) internal isLpV2;
-    mapping(address => bool) internal isLpV3;
+    mapping(address => bool) public isLpV2;
+    mapping(address => bool) public isLpV3;
 
     modifier onlyAllocationWhitelist() {
         require(_isAddressInList(msg.sender, allocationWhitelist()),
@@ -437,6 +437,7 @@ contract XGrailStrategyV3 is BaseUpgradeableStrategy {
         address ethUsdcV3 = address(0xd7Ef5Ac7fd4AAA7994F3bc1D273eAb1d1013530E);
         rewardTokens = [ethUsdcV2, ethUsdcV3];
         isLpV2[ethUsdcV2] = true;
+        isLpV2[ethUsdcV3] = false;
         isLpV3[ethUsdcV3] = true;
         _finalizeUpgrade();
     }
