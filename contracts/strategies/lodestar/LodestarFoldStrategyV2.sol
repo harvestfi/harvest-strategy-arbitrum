@@ -331,7 +331,8 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
 
     _redeemWithFlashloan(Math.min(available, balance), 0);
     supplied = CTokenInterface(_cToken).balanceOfUnderlying(address(this));
-    if (supplied > 0) {
+    uint256 exchangeRate = CTokenInterface(_cToken).exchangeRateStored().div(1e18);
+    if (supplied > exchangeRate) {
       _redeem(supplied);
     }
   }
@@ -437,7 +438,6 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       _repay(repaying);
       _redeem(toRepay);
     }
-    balance = IERC20(_underlying).balanceOf(address(this));
     IERC20(_underlying).safeTransfer(bVault, toRepay);
   }
 
