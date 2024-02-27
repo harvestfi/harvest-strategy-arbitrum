@@ -11,24 +11,28 @@ const { send } = require("@openzeppelin/test-helpers");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
-//const Strategy = artifacts.require("");
-const Strategy = artifacts.require("ConvexStrategyMainnet_USDC_USDT");
+const Strategy = artifacts.require("ConvexStrategyMainnet_crvUSD_USDCe");
 
-// Developed and tested at blockNumber 185052380
+// Developed and tested at blockNumber 184782800
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Arbitrum Mainnet Convex USDC-USDT", function() {
+describe("Arbitrum Mainnet Convex crvUSD-USDCe", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x641D99580f6cf034e1734287A9E8DaE4356641cA";
+  let underlyingWhale = "0xDc048fb9f1C355d9b93B4db8430941e831ee0573";
+  let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
+  let crv = "0x11cdb42b0eb46d95f990bedd4695a6e3fa034978";
+  let usdce = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8";
+  let arb = "0x912CE59144191C1204E64559FE8253a0e49E6548";
   let usdc = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
 
   // parties in the protocol
   let governance;
+  let ulowner;
   let farmer1;
 
   // numbers used in tests
@@ -40,7 +44,7 @@ describe("Arbitrum Mainnet Convex USDC-USDT", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0x7f90122BF0700F9E7e1F688fe926940E8839F353");
+    underlying = await IERC20.at("0x3aDf984c937FA6846E5a24E0A68521Bdaf767cE1");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -54,15 +58,17 @@ describe("Arbitrum Mainnet Convex USDC-USDT", function() {
 
   before(async function() {
     governance = addresses.Governance;
+    ulowner = addresses.ULOwner;
     accounts = await web3.eth.getAccounts();
 
     farmer1 = accounts[1];
 
     // impersonate accounts
-    await impersonates([governance, underlyingWhale]);
+    await impersonates([governance, underlyingWhale, ulowner]);
 
     let etherGiver = accounts[9];
     await send.ether(etherGiver, governance, "100" + "000000000000000000");
+    await web3.eth.sendTransaction({ from: etherGiver, to: ulowner, value: 10e18 });
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
@@ -72,8 +78,10 @@ describe("Arbitrum Mainnet Convex USDC-USDT", function() {
       "underlying": underlying,
       "governance": governance,
       "liquidation": [
-        {"uniV3": [crv, weth]},
-        {"camelot": [weth, usdc]},
+        { "uniV3": [crv, weth] },
+        { "camelot": [weth, usdce] },
+        { "camelot": [arb, weth] },
+        {"uniV3": [weth, usdc, usdce]}
       ],
       "ULOwner": addresses.ULOwner
     });
