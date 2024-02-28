@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "./base/ConvexStrategy.sol";
 
-contract ConvexStrategyMainnet_USDC_USDT is ConvexStrategy {
+contract ConvexStrategyMainnet_USDCe_USDT is ConvexStrategy {
 
   constructor() public {}
 
@@ -16,7 +16,7 @@ contract ConvexStrategyMainnet_USDC_USDT is ConvexStrategy {
     address rewardPool = address(0x971E732B5c91A59AEa8aa5B0c763E6d648362CF8); // Info -> Rewards contract address
     address crv = address(0x11cDb42B0EB46D95f990BeDD4695A6e3fA034978);
     address cvx = address(0xb952A807345991BD529FDded05009F5e80Fe8F45);
-    address usdc = address(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
+    address usdce = address(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
     address arb = address(0x912CE59144191C1204E64559FE8253a0e49E6548);
     ConvexStrategy.initializeBaseStrategy(
       _storage,
@@ -24,16 +24,12 @@ contract ConvexStrategyMainnet_USDC_USDT is ConvexStrategy {
       _vault,
       rewardPool, // rewardPool
       7,  // Pool id: Info -> Rewards contract address -> read -> pid
-      usdc, // depositToken
+      usdce, // depositToken
       0, //depositArrayPosition. Find deposit transaction -> input params
       underlying, // deposit contract: usually underlying. Find deposit transaction -> interacted contract
       2, //nTokens -> total number of deposit tokens
-      false //metaPool -> if LP token address == pool address (at curve)
+      false //NG -> new version Curve Pool
     );
     rewardTokens = [crv, cvx, arb];
-    reward2WETH[crv] = [crv, weth];
-    reward2WETH[cvx] = [cvx, weth];
-    reward2WETH[arb] = [arb, weth];
-    WETH2deposit = [weth, usdc];
   }
 }

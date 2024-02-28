@@ -13,7 +13,7 @@ const IERC20 = artifacts.require("IERC20");
 
 const Strategy = artifacts.require("ConvexStrategyMainnet_fETH_xETH_WETH");
 
-// Developed and tested at blockNumber 177422980
+// Developed and tested at blockNumber 185225290
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
 describe("Arbitrum Mainnet Convex fETH-xETH-WETH", function() {
@@ -23,7 +23,7 @@ describe("Arbitrum Mainnet Convex fETH-xETH-WETH", function() {
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x91d947daa437f790bf8fbe1e81fd3eda403796bf";
+  let underlyingWhale = "0x3AcaA44c88fd25BfFF30c2fB929F2eB98C148876";
   let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
   let crv = "0x11cdb42b0eb46d95f990bedd4695a6e3fa034978";
   let cvx = "0xb952A807345991BD529FDded05009F5e80Fe8F45";
@@ -106,8 +106,8 @@ describe("Arbitrum Mainnet Convex fETH-xETH-WETH", function() {
         console.log("new shareprice: ", newSharePrice.toFixed());
         console.log("growth: ", newSharePrice.toFixed() / oldSharePrice.toFixed());
 
-        apr = (newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/1565))*365;
-        apy = ((newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/1565))+1)**365;
+        apr = (newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/300))*365;
+        apy = ((newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/300))+1)**365;
 
         console.log("instant APR:", apr*100, "%");
         console.log("instant APY:", (apy-1)*100, "%");
@@ -118,8 +118,8 @@ describe("Arbitrum Mainnet Convex fETH-xETH-WETH", function() {
       let farmerNewBalance = new BigNumber(await underlying.balanceOf(farmer1));
       Utils.assertBNGt(farmerNewBalance, farmerOldBalance);
 
-      apr = (farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/1565))*365;
-      apy = ((farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/1565))+1)**365;
+      apr = (farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/300))*365;
+      apy = ((farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/300))+1)**365;
 
       console.log("earned!");
       console.log("APR:", apr*100, "%");

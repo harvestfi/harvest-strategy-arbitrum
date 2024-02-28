@@ -27,10 +27,8 @@ contract ConvexStrategyMainnet_USDT_WBTC_WETH is ConvexStrategy {
       2, //depositArrayPosition. Find deposit transaction -> input params
       curveDeposit, // deposit contract: usually underlying. Find deposit transaction -> interacted contract
       3, //nTokens -> total number of deposit tokens
-      false //metaPool -> if LP token address == pool address (at curve)
+      false //NG -> new version Curve Pool
     );
     rewardTokens = [crv, cvx];
-    reward2WETH[crv] = [crv, weth];
-    reward2WETH[cvx] = [cvx, weth];
   }
 }

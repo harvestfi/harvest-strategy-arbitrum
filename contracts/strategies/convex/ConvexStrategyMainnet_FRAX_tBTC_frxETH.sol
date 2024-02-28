@@ -28,12 +28,8 @@ contract ConvexStrategyMainnet_FRAX_tBTC_frxETH is ConvexStrategy {
       0, //depositArrayPosition. Find deposit transaction -> input params
       underlying, // deposit contract: usually underlying. Find deposit transaction -> interacted contract
       3, //nTokens -> total number of deposit tokens
-      false //metaPool -> if LP token address == pool address (at curve)
+      false //NG -> new version Curve Pool
     );
     rewardTokens = [crv, cvx, arb];
-    reward2WETH[crv] = [crv, weth];
-    reward2WETH[cvx] = [cvx, weth];
-    reward2WETH[arb] = [cvx, weth];
-    WETH2deposit = [weth, frax];
   }
 }

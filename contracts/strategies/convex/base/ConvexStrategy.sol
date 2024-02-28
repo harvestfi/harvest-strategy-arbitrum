@@ -8,14 +8,12 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../interface/IBooster.sol";
 import "../interface/IBaseRewardPool.sol";
+import "../../../base/interface/curve/ICurveDeposit_NG.sol";
 import "../../../base/interface/curve/ICurveDeposit_2token.sol";
 import "../../../base/interface/curve/ICurveDeposit_3token.sol";
-import "../../../base/interface/curve/ICurveDeposit_3token_meta.sol";
 import "../../../base/interface/curve/ICurveDeposit_4token.sol";
-import "../../../base/interface/curve/ICurveDeposit_4token_meta.sol";
 import "../../../base/interface/weth/IWETH.sol";
 import "../../../base/interface/IUniversalLiquidator.sol";
-import "hardhat/console.sol";
 
 contract ConvexStrategy is BaseUpgradeableStrategy {
   using SafeMath for uint256;
@@ -24,7 +22,6 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
   address public constant booster = address(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
   address public constant weth = address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
   address public constant harvestMSIG = address(0xf3D1A027E858976634F81B7c41B09A05A46EdA21);
-  address public constant uniV3Router = address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
 
   // additional storage slots (on top of BaseUpgradeableStrategy ones) are defined here
   bytes32 internal constant _POOLID_SLOT = 0x3fd729bfa2e28b7806b03a6e014729f59477b530f995be4d51defc9dad94810b;
@@ -32,13 +29,10 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
   bytes32 internal constant _DEPOSIT_ARRAY_POSITION_SLOT = 0xb7c50ef998211fff3420379d0bf5b8dfb0cee909d1b7d9e517f311c104675b09;
   bytes32 internal constant _CURVE_DEPOSIT_SLOT = 0xb306bb7adebd5a22f5e4cdf1efa00bc5f62d4f5554ef9d62c1b16327cd3ab5f9;
   bytes32 internal constant _NTOKENS_SLOT = 0xbb60b35bae256d3c1378ff05e8d7bee588cd800739c720a107471dfa218f74c1;
-  bytes32 internal constant _METAPOOL_SLOT = 0x567ad8b67c826974a167f1a361acbef5639a3e7e02e99edbc648a84b0923d5b7;
+  bytes32 internal constant _NG_SLOT = 0xcd6a0b148d19dba2b2780e77ba620dd79534ef7aeb84c51a65b7d73c6a83da27;
 
   // this would be reset on each upgrade
-  address[] public WETH2deposit;
-  mapping(address => address[]) public reward2WETH;
   address[] public rewardTokens;
-  mapping (address => mapping(address => uint24)) public storedPairFee;
 
   constructor() public BaseUpgradeableStrategy() {
     assert(_POOLID_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.poolId")) - 1));
@@ -46,7 +40,7 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     assert(_DEPOSIT_ARRAY_POSITION_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.depositArrayPosition")) - 1));
     assert(_CURVE_DEPOSIT_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.curveDeposit")) - 1));
     assert(_NTOKENS_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.nTokens")) - 1));
-    assert(_METAPOOL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.metaPool")) - 1));
+    assert(_NG_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.NG")) - 1));
   }
 
   function initializeBaseStrategy(
@@ -59,7 +53,7 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     uint256 _depositArrayPosition,
     address _curveDeposit,
     uint256 _nTokens,
-    bool _metaPool
+    bool _NG
   ) public initializer {
 
     BaseUpgradeableStrategy.initialize(
@@ -81,7 +75,7 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     _setDepositToken(_depositToken);
     _setCurveDeposit(_curveDeposit);
     _setNTokens(_nTokens);
-    _setMetaPool(_metaPool);
+    _setNG(_NG);
   }
 
   function depositArbCheck() public pure returns(bool) {
@@ -140,36 +134,13 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     _setPausedInvesting(false);
   }
 
-  function setDepositLiquidationPath(address [] memory _route) public onlyGovernance {
-    require(_route[0] == weth, "Path should start with WETH");
-    require(_route[_route.length-1] == depositToken(), "Path should end with depositToken");
-    WETH2deposit = _route;
-  }
-
-  function setRewardLiquidationPath(address [] memory _route) public onlyGovernance {
-    require(_route[_route.length-1] == weth, "Path should end with WETH");
-    bool isReward = false;
-    for(uint256 i = 0; i < rewardTokens.length; i++){
-      if (_route[0] == rewardTokens[i]) {
-        isReward = true;
-      }
-    }
-    require(isReward, "Path should start with a rewardToken");
-    reward2WETH[_route[0]] = _route;
-  }
-
-  function addRewardToken(address _token, address[] memory _path2WETH) public onlyGovernance {
+  function addRewardToken(address _token) public onlyGovernance {
     rewardTokens.push(_token);
-    setRewardLiquidationPath(_path2WETH);
   }
 
-  function changeDepositToken(address _depositToken, address[] memory _liquidationPath) public onlyGovernance {
+  function changeDepositToken(address _depositToken, uint256 _depositArrayPosition) public onlyGovernance {
     _setDepositToken(_depositToken);
-    setDepositLiquidationPath(_liquidationPath);
-  }
-
-  function setPairFee(address token0, address token1, uint24 fee) public onlyGovernance {
-    storedPairFee[token0][token1] = fee;
+    _setDepositArrayPosition(_depositArrayPosition);
   }
 
   // We assume that all the tradings can be done on Sushiswap
@@ -188,11 +159,7 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
       address token = rewardTokens[i];
       uint256 balance = IERC20(token).balanceOf(address(this));
 
-      if(reward2WETH[token].length < 2 || balance < 1e15) {
-        continue;
-      }
-
-      if (token != _rewardToken) {
+      if (balance > 0 && token != _rewardToken) {
         IERC20(token).safeApprove(_universalLiquidator, 0);
         IERC20(token).safeApprove(_universalLiquidator, balance);
         IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, balance, 1, address(this));
@@ -224,8 +191,6 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     address _depositToken = depositToken();
     address _curveDeposit = curveDeposit();
     uint256 _nTokens = nTokens();
-    uint256 _depositArrayPosition = depositArrayPosition();
-    bool _metaPool = metaPool();
 
     uint256 tokenBalance = IERC20(_depositToken).balanceOf(address(this));
     IERC20(_depositToken).safeApprove(_curveDeposit, 0);
@@ -234,26 +199,23 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     // we can accept 1 as minimum, this will be called only by trusted roles
     uint256 minimum = 1;
     if (_nTokens == 2) {
-      uint256[2] memory depositArray;
-      depositArray[_depositArrayPosition] = tokenBalance;
-      uint256 miniumAmount = ICurveDeposit_2token(_curveDeposit).calc_token_amount(depositArray, true);
-      ICurveDeposit_2token(_curveDeposit).add_liquidity(depositArray, miniumAmount);
+      if (NG()) {
+        uint256[] memory depositArray = new uint256[](2);
+        depositArray[depositArrayPosition()] = tokenBalance;
+        ICurveDeposit_NG(_curveDeposit).add_liquidity(depositArray, minimum);
+      } else {
+        uint256[2] memory depositArray;
+        depositArray[depositArrayPosition()] = tokenBalance;
+        ICurveDeposit_2token(_curveDeposit).add_liquidity(depositArray, minimum);
+      }
     } else if (_nTokens == 3) {
       uint256[3] memory depositArray;
-      depositArray[_depositArrayPosition] = tokenBalance;
-      if (_metaPool) {
-        ICurveDeposit_3token_meta(_curveDeposit).add_liquidity(underlying(), depositArray, minimum);
-      } else {
-        ICurveDeposit_3token(_curveDeposit).add_liquidity(depositArray, minimum);
-      }
+      depositArray[depositArrayPosition()] = tokenBalance;
+      ICurveDeposit_3token(_curveDeposit).add_liquidity(depositArray, minimum);
     } else if (_nTokens == 4) {
       uint256[4] memory depositArray;
-      depositArray[_depositArrayPosition] = tokenBalance;
-      if (_metaPool) {
-        ICurveDeposit_4token_meta(_curveDeposit).add_liquidity(underlying(), depositArray, minimum);
-      } else {
-        ICurveDeposit_4token(_curveDeposit).add_liquidity(depositArray, minimum);
-      }
+      depositArray[depositArrayPosition()] = tokenBalance;
+      ICurveDeposit_4token(_curveDeposit).add_liquidity(depositArray, minimum);
     }
   }
 
@@ -388,12 +350,12 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     return getUint256(_NTOKENS_SLOT);
   }
 
-  function _setMetaPool(bool _value) internal {
-    setBoolean(_METAPOOL_SLOT, _value);
+  function _setNG(bool _value) internal {
+    setBoolean(_NG_SLOT, _value);
   }
 
-  function metaPool() public view returns (bool) {
-    return getBoolean(_METAPOOL_SLOT);
+  function NG() public view returns (bool) {
+    return getBoolean(_NG_SLOT);
   }
 
 
