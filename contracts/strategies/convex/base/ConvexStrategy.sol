@@ -8,13 +8,14 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../interface/IBooster.sol";
 import "../interface/IBaseRewardPool.sol";
-import "../../../base/interface/uniswap/IUniswapV3Router.sol";
 import "../../../base/interface/curve/ICurveDeposit_2token.sol";
 import "../../../base/interface/curve/ICurveDeposit_3token.sol";
 import "../../../base/interface/curve/ICurveDeposit_3token_meta.sol";
 import "../../../base/interface/curve/ICurveDeposit_4token.sol";
 import "../../../base/interface/curve/ICurveDeposit_4token_meta.sol";
 import "../../../base/interface/weth/IWETH.sol";
+import "../../../base/interface/IUniversalLiquidator.sol";
+import "hardhat/console.sol";
 
 contract ConvexStrategy is BaseUpgradeableStrategy {
   using SafeMath for uint256;
@@ -167,48 +168,8 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     setDepositLiquidationPath(_liquidationPath);
   }
 
-  function uniV3PairFee(address sellToken, address buyToken) public view returns(uint24 fee) {
-    if(storedPairFee[sellToken][buyToken] != 0) {
-      return storedPairFee[sellToken][buyToken];
-    } else if(storedPairFee[buyToken][sellToken] != 0) {
-      return storedPairFee[buyToken][sellToken];
-    } else {
-      return 3000;
-    }
-  }
-
   function setPairFee(address token0, address token1, uint24 fee) public onlyGovernance {
     storedPairFee[token0][token1] = fee;
-  }
-
-  function uniV3Swap(
-    uint256 amountIn,
-    uint256 minAmountOut,
-    address[] memory pathWithoutFee
-  ) internal {
-    address currentSellToken = pathWithoutFee[0];
-
-    IERC20(currentSellToken).safeIncreaseAllowance(uniV3Router, amountIn);
-
-    bytes memory pathWithFee = abi.encodePacked(currentSellToken);
-    for(uint256 i=1; i < pathWithoutFee.length; i++) {
-      address currentBuyToken = pathWithoutFee[i];
-      pathWithFee = abi.encodePacked(
-        pathWithFee,
-        uniV3PairFee(currentSellToken, currentBuyToken),
-        currentBuyToken);
-      currentSellToken = currentBuyToken;
-    }
-
-    IUniswapV3Router.ExactInputParams memory param = IUniswapV3Router.ExactInputParams({
-      path: pathWithFee,
-      recipient: address(this),
-      deadline: block.timestamp,
-      amountIn: amountIn,
-      amountOutMinimum: minAmountOut
-    });
-
-    IUniswapV3Router(uniV3Router).exactInput(param);
   }
 
   // We assume that all the tradings can be done on Sushiswap
@@ -221,16 +182,22 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
 
     address _rewardToken = rewardToken();
     address _depositToken = depositToken();
+    address _universalLiquidator = universalLiquidator();
 
     for(uint256 i = 0; i < rewardTokens.length; i++){
       address token = rewardTokens[i];
-      uint256 rewardBalance = IERC20(token).balanceOf(address(this));
+      uint256 balance = IERC20(token).balanceOf(address(this));
 
-      if(reward2WETH[token].length < 2 || rewardBalance < 1e15) {
+      if(reward2WETH[token].length < 2 || balance < 1e15) {
         continue;
       }
 
-      uniV3Swap(rewardBalance, 1, reward2WETH[token]);
+      if (token != _rewardToken) {
+        IERC20(token).safeApprove(_universalLiquidator, 0);
+        IERC20(token).safeApprove(_universalLiquidator, balance);
+        IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, balance, 1, address(this));
+      }
+
     }
 
     uint256 rewardBalance = IERC20(_rewardToken).balanceOf(address(this));
@@ -242,7 +209,9 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     }
 
     if(_depositToken != _rewardToken) {
-      uniV3Swap(remainingRewardBalance, 1, WETH2deposit);
+      IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
+      IERC20(_rewardToken).safeApprove(_universalLiquidator, remainingRewardBalance);
+      IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, _depositToken, remainingRewardBalance, 1, address(this));
     }
 
     uint256 tokenBalance = IERC20(_depositToken).balanceOf(address(this));
@@ -267,7 +236,8 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     if (_nTokens == 2) {
       uint256[2] memory depositArray;
       depositArray[_depositArrayPosition] = tokenBalance;
-      ICurveDeposit_2token(_curveDeposit).add_liquidity(depositArray, minimum);
+      uint256 miniumAmount = ICurveDeposit_2token(_curveDeposit).calc_token_amount(depositArray, true);
+      ICurveDeposit_2token(_curveDeposit).add_liquidity(depositArray, miniumAmount);
     } else if (_nTokens == 3) {
       uint256[3] memory depositArray;
       depositArray[_depositArrayPosition] = tokenBalance;
