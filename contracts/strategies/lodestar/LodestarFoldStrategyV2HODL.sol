@@ -58,7 +58,6 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
     address _vault,
     address _cToken,
     address _comptroller,
-    address _rewardToken,
     uint256 _borrowTargetFactorNumerator,
     uint256 _collateralFactorNumerator,
     uint256 _factorDenominator,
@@ -72,7 +71,7 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
       _underlying,
       _vault,
       _comptroller,
-      _rewardToken,
+      weth,
       harvestMSIG
     );
     _setCToken(_cToken);
@@ -294,6 +293,9 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
   * Supplies to Moonwel
   */
   function _supply(uint256 amount) internal {
+    if (amount == 0){
+      return;
+    }
     address _underlying = underlying();
     address _cToken = cToken();
     uint256 balance = IERC20(_underlying).balanceOf(address(this));
@@ -314,6 +316,9 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
   * Borrows against the collateral
   */
   function _borrow(uint256 amountUnderlying) internal {
+    if (amountUnderlying == 0){
+      return;
+    }
     // Borrow, check the balance for this contract's address
     CErc20Interface(cToken()).borrow(amountUnderlying);
     if(underlying() == weth){
@@ -322,6 +327,9 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
   }
 
   function _redeem(uint256 amountUnderlying) internal {
+    if (amountUnderlying == 0){
+      return;
+    }
     CErc20Interface(cToken()).redeemUnderlying(amountUnderlying);
     if(underlying() == weth){
       IWETH(weth).deposit{value: address(this).balance}();
@@ -329,6 +337,9 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
   }
 
   function _repay(uint256 amountUnderlying) internal {
+    if (amountUnderlying == 0){
+      return;
+    }
     address _underlying = underlying();
     address _cToken = cToken();
     if (_underlying == weth) {
@@ -353,7 +364,8 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
 
     _redeemWithFlashloan(Math.min(available, balance), 0);
     supplied = CTokenInterface(_cToken).balanceOfUnderlying(address(this));
-    if (supplied > 0) {
+    uint256 exchangeRate = CTokenInterface(_cToken).exchangeRateStored().div(1e18);
+    if (supplied > exchangeRate) {
       _redeem(supplied);
     }
   }
@@ -374,13 +386,17 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
       borrowDiff = 0;
     } else {
       borrowDiff = borrowTarget.sub(borrowed);
-    }
-
-    uint256 totalBorrows = CTokenInterface(_cToken).totalBorrowsCurrent();
-    uint256 borrowCap = ComptrollerInterface(rewardPool()).borrowCaps(_cToken);
-
-    if (totalBorrows.add(borrowDiff) > borrowCap) {
-      return;
+      uint256 borrowCap = ComptrollerInterface(rewardPool()).borrowCaps(_cToken);
+      uint256 totalBorrows = CTokenInterface(_cToken).totalBorrows();
+      uint256 borrowAvail;
+      if (totalBorrows < borrowCap) {
+        borrowAvail = borrowCap.sub(totalBorrows).sub(1);
+      } else {
+        borrowAvail = 0;
+      }
+      if (borrowDiff > borrowAvail){
+        borrowDiff = borrowAvail;
+      }
     }
 
     address _underlying = underlying();
@@ -412,7 +428,12 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
         uint256 newBalance = oldBalance.sub(amount);
         newBorrowTarget = newBalance.mul(borrowTargetFactorNumerator).div(factorDenominator().sub(borrowTargetFactorNumerator));
     }
-    uint256 borrowDiff = borrowed.sub(newBorrowTarget);
+    uint256 borrowDiff;
+    if (borrowed < newBorrowTarget) {
+      borrowDiff = 0;
+    } else {
+      borrowDiff = borrowed.sub(newBorrowTarget);
+    }
     address _underlying = underlying();
     uint256 balancerBalance = IERC20(_underlying).balanceOf(bVault);
 
@@ -450,7 +471,6 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
       _repay(repaying);
       _redeem(toRepay);
     }
-    balance = IERC20(_underlying).balanceOf(address(this));
     IERC20(_underlying).safeTransfer(bVault, toRepay);
   }
 
@@ -458,6 +478,19 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
     address _underlying = underlying();
     uint256 balance = supplied.sub(borrowed);
     uint256 borrowTarget = balance.mul(_borrowNum).div(_denom.sub(_borrowNum));
+    {
+      uint256 borrowCap = ComptrollerInterface(rewardPool()).borrowCaps(_cToken);
+      uint256 totalBorrows = CTokenInterface(_cToken).totalBorrows();
+      uint256 borrowAvail;
+      if (totalBorrows < borrowCap) {
+        borrowAvail = borrowCap.sub(totalBorrows).sub(1);
+      } else {
+        borrowAvail = 0;
+      }
+      if (borrowTarget.sub(borrowed) > borrowAvail) {
+        borrowTarget = borrowed.add(borrowAvail);
+      }
+    }
     while (borrowed < borrowTarget) {
       uint256 wantBorrow = borrowTarget.sub(borrowed);
       uint256 maxBorrow = supplied.mul(collateralFactorNumerator()).div(_denom).sub(borrowed);
@@ -507,9 +540,9 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
   // updating collateral factor
   // note 1: one should settle the loan first before calling this
   // note 2: collateralFactorDenominator is 1000, therefore, for 20%, you need 200
-  function _setCollateralFactorNumerator(uint256 _numerator) public onlyGovernance {
-    require(_numerator <= factorDenominator(), "CF too high");
-    require(_numerator > borrowTargetFactorNumerator(), "CF too low");
+  function _setCollateralFactorNumerator(uint256 _numerator) internal {
+    require(_numerator <= uint(820).mul(factorDenominator()).div(1000), "Collateral factor cannot be this high");
+    require(_numerator > borrowTargetFactorNumerator(), "Collateral factor should be higher than borrow target");
     setUint256(_COLLATERALFACTORNUMERATOR_SLOT, _numerator);
   }
 
@@ -526,7 +559,7 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
   }
 
   function setBorrowTargetFactorNumerator(uint256 _numerator) public onlyGovernance {
-    require(_numerator < collateralFactorNumerator(), "BF too high");
+    require(_numerator < collateralFactorNumerator(), "Target should be lower than collateral limit");
     setUint256(_BORROWTARGETFACTORNUMERATOR_SLOT, _numerator);
   }
 

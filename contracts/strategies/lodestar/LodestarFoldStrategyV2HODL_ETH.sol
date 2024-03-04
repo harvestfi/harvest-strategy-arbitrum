@@ -6,18 +6,21 @@ import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../../base/interface/IUniversalLiquidator.sol";
+import "../../base/interface/IVault.sol";
+import "../../base/interface/IPotPool.sol";
 import "../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../../base/interface/lodestar/CTokenInterfaces.sol";
 import "../../base/interface/lodestar/ComptrollerInterface.sol";
 import "../../base/interface/balancer/IBVault.sol";
 import "../../base/interface/weth/IWETH.sol";
 
-contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
+contract LodestarFoldStrategyV2HODL_ETH is BaseUpgradeableStrategy {
 
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
   address public constant weth = address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
+  address public constant lode = address(0xF19547f9ED24aA66b03c3a552D181Ae334FBb8DB);
   address public constant bVault = address(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
   address public constant harvestMSIG = address(0xf3D1A027E858976634F81B7c41B09A05A46EdA21);
 
@@ -27,6 +30,8 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
   bytes32 internal constant _FACTORDENOMINATOR_SLOT = 0x4e92df66cc717205e8df80bec55fc1429f703d590a2d456b97b74f0008b4a3ee;
   bytes32 internal constant _BORROWTARGETFACTORNUMERATOR_SLOT = 0xa65533f4b41f3786d877c8fdd4ae6d27ada84e1d9c62ea3aca309e9aa03af1cd;
   bytes32 internal constant _FOLD_SLOT = 0x1841be4c16015a744c9fbf595f7c6b32d40278c16c1fc7cf2de88c6348de44ba;
+  bytes32 internal constant _LODE_VAULT_SLOT = 0xf7566b617fb729f096ab296b2ea55a2d2da7aa17043d001c3834a520a9963a7f;
+  bytes32 internal constant _POTPOOL_SLOT = 0x7f4b50847e7d7a4da6a6ea36bfb188c77e9f093697337eb9a876744f926dd014;
 
   uint256 public suppliedInUnderlying;
   uint256 public borrowedInUnderlying;
@@ -43,6 +48,8 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     assert(_FACTORDENOMINATOR_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.factorDenominator")) - 1));
     assert(_BORROWTARGETFACTORNUMERATOR_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.borrowTargetFactorNumerator")) - 1));
     assert(_FOLD_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.fold")) - 1));
+    assert(_LODE_VAULT_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.lodeVault")) - 1));
+    assert(_POTPOOL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.potPool")) - 1));
   }
 
   function initializeBaseStrategy(
@@ -54,7 +61,9 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     uint256 _borrowTargetFactorNumerator,
     uint256 _collateralFactorNumerator,
     uint256 _factorDenominator,
-    bool _fold
+    bool _fold,
+    address _lodeVault,
+    address _potPool
   )
   public initializer {
     BaseUpgradeableStrategy.initialize(
@@ -62,25 +71,24 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       _underlying,
       _vault,
       _comptroller,
-      weth,
+      lode,
       harvestMSIG
     );
-
-    if (_underlying != weth) {
-      require(CErc20Interface(_cToken).underlying() == _underlying, "Underlying mismatch");
-    }
-
     _setCToken(_cToken);
 
-    require(_collateralFactorNumerator < _factorDenominator, "Numerator should be smaller than denominator");
-    require(_borrowTargetFactorNumerator < _collateralFactorNumerator, "Target should be lower than limit");
     _setFactorDenominator(_factorDenominator);
-    _setCollateralFactorNumerator(_collateralFactorNumerator);
+    require(_collateralFactorNumerator <= factorDenominator(), "CF too high");
+    setUint256(_COLLATERALFACTORNUMERATOR_SLOT, _collateralFactorNumerator);
+    require(_borrowTargetFactorNumerator < _collateralFactorNumerator, "BF too high");
     setUint256(_BORROWTARGETFACTORNUMERATOR_SLOT, _borrowTargetFactorNumerator);
+    
     setBoolean(_FOLD_SLOT, _fold);
     address[] memory markets = new address[](1);
     markets[0] = _cToken;
     ComptrollerInterface(_comptroller).enterMarkets(markets);
+
+    setAddress(_LODE_VAULT_SLOT, _lodeVault);
+    setAddress(_POTPOOL_SLOT, _potPool);
   }
 
   modifier updateSupplyInTheEnd() {
@@ -188,7 +196,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       fold()? borrowTargetFactorNumerator():0
       );
     uint256 balanceAfter = IERC20(_underlying).balanceOf(address(this));
-    require(balanceAfter.sub(balanceBefore) >= amountUnderlying, "Unable to withdraw the entire amountUnderlying");
+    require(balanceAfter.sub(balanceBefore) >= amountUnderlying, "Redeem amount");
   }
 
   /**
@@ -196,7 +204,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
   */
   function salvage(address recipient, address token, uint256 amount) public onlyGovernance {
     // To make sure that governance cannot come in and take away the coins
-    require(!unsalvagableTokens(token), "token is defined as not salvagable");
+    require(!unsalvagableTokens(token), "NS");
     IERC20(token).safeTransfer(recipient, amount);
   }
 
@@ -216,23 +224,37 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     }
     address _rewardToken = rewardToken();
     address _universalLiquidator = universalLiquidator();
+    uint256 hodledInRT;
+    uint256 totalFee = strategistFeeNumerator().add(platformFeeNumerator()).add(profitSharingNumerator());
+    uint256 _feeDenominator = feeDenominator();
     for (uint256 i; i < rewardTokens.length; i++) {
       address token = rewardTokens[i];
       uint256 balance = IERC20(token).balanceOf(address(this));
       if (balance == 0) {
-          continue;
+        continue;
+      }
+      if (token == lode) {
+        uint256 toHodl = balance.mul(_feeDenominator.sub(totalFee)).div(_feeDenominator);
+        _hodlLode(toHodl);
+        balance = IERC20(token).balanceOf(address(this));
+        hodledInRT = balance.mul(_feeDenominator.sub(totalFee)).div(totalFee);
       }
       if (token != _rewardToken){
-          IERC20(token).safeApprove(_universalLiquidator, 0);
-          IERC20(token).safeApprove(_universalLiquidator, balance);
-          IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, balance, 1, address(this));
+        uint256 rtBefore = IERC20(_rewardToken).balanceOf(address(this));
+        IERC20(token).safeApprove(_universalLiquidator, 0);
+        IERC20(token).safeApprove(_universalLiquidator, balance);
+        IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, balance, 1, address(this));
+        uint256 rtGained = IERC20(_rewardToken).balanceOf(address(this)).sub(rtBefore);
+        if (token == lode) {
+          hodledInRT = rtGained.mul(_feeDenominator.sub(totalFee)).div(totalFee);
+        }
       }
     }
-    uint256 rewardBalance = IERC20(_rewardToken).balanceOf(address(this));
+    uint256 rewardBalance = IERC20(_rewardToken).balanceOf(address(this)).add(hodledInRT);
     _notifyProfitInRewardToken(_rewardToken, rewardBalance);
     uint256 remainingRewardBalance = IERC20(_rewardToken).balanceOf(address(this));
 
-    if (remainingRewardBalance <= 1e13) {
+    if (remainingRewardBalance <= 1e10) {
       return;
     }
   
@@ -242,6 +264,19 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       IERC20(_rewardToken).safeApprove(_universalLiquidator, remainingRewardBalance);
       IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, _underlying, remainingRewardBalance, 1, address(this));
     }
+  }
+
+  function _hodlLode(uint256 toHodl) internal {
+    address _lodeVault = lodeVault();
+    address _potPool = potPool();
+
+    IERC20(lode).safeApprove(_lodeVault, 0);
+    IERC20(lode).safeApprove(_lodeVault, toHodl);
+    IVault(_lodeVault).deposit(toHodl);
+
+    uint256 vaultBalance = IERC20(_lodeVault).balanceOf(address(this));
+    IERC20(_lodeVault).safeTransfer(_potPool, vaultBalance);
+    IPotPool(_potPool).notifyTargetRewardAmount(_lodeVault, vaultBalance);
   }
 
   /**
@@ -266,13 +301,6 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     uint256 balance = IERC20(_underlying).balanceOf(address(this));
     if (amount < balance) {
       balance = amount;
-    }
-    uint256 supplyCap = ComptrollerInterface(rewardPool()).supplyCaps(_cToken);
-    uint256 currentSupplied = CTokenInterface(_cToken).totalSupply().mul(CTokenInterface(_cToken).exchangeRateCurrent()).div(1e18);
-    if (currentSupplied > supplyCap) {
-      return;
-    } else if (supplyCap.sub(currentSupplied) < balance) {
-      balance = supplyCap.sub(currentSupplied).sub(1);
     }
     if (_underlying == weth) {
       IWETH(weth).withdraw(balance);
@@ -336,8 +364,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
 
     _redeemWithFlashloan(Math.min(available, balance), 0);
     supplied = CTokenInterface(_cToken).balanceOfUnderlying(address(this));
-    uint256 exchangeRate = CTokenInterface(_cToken).exchangeRateStored().div(1e18);
-    if (supplied > exchangeRate) {
+    if (supplied > 0) {
       _redeem(supplied);
     }
   }
@@ -358,18 +385,11 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       borrowDiff = 0;
     } else {
       borrowDiff = borrowTarget.sub(borrowed);
-      uint256 supplyCap = ComptrollerInterface(rewardPool()).supplyCaps(_cToken);
-      uint256 currentSupplied = CTokenInterface(_cToken).totalSupply().mul(CTokenInterface(_cToken).exchangeRateCurrent()).div(1e18);
       uint256 borrowCap = ComptrollerInterface(rewardPool()).borrowCaps(_cToken);
       uint256 totalBorrows = CTokenInterface(_cToken).totalBorrows();
       uint256 borrowAvail;
       if (totalBorrows < borrowCap) {
         borrowAvail = borrowCap.sub(totalBorrows).sub(1);
-        if (currentSupplied < supplyCap) {
-          borrowAvail = Math.min(supplyCap.sub(currentSupplied).sub(1), borrowAvail);
-        } else {
-          borrowAvail = 0;
-        }
       } else {
         borrowAvail = 0;
       }
@@ -450,6 +470,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       _repay(repaying);
       _redeem(toRepay);
     }
+    balance = IERC20(_underlying).balanceOf(address(this));
     IERC20(_underlying).safeTransfer(bVault, toRepay);
   }
 
@@ -458,18 +479,11 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     uint256 balance = supplied.sub(borrowed);
     uint256 borrowTarget = balance.mul(_borrowNum).div(_denom.sub(_borrowNum));
     {
-      uint256 supplyCap = ComptrollerInterface(rewardPool()).supplyCaps(_cToken);
-      uint256 currentSupplied = CTokenInterface(_cToken).totalSupply().mul(CTokenInterface(_cToken).exchangeRateCurrent()).div(1e18);
       uint256 borrowCap = ComptrollerInterface(rewardPool()).borrowCaps(_cToken);
       uint256 totalBorrows = CTokenInterface(_cToken).totalBorrows();
       uint256 borrowAvail;
       if (totalBorrows < borrowCap) {
         borrowAvail = borrowCap.sub(totalBorrows).sub(1);
-        if (currentSupplied < supplyCap) {
-          borrowAvail = Math.min(supplyCap.sub(currentSupplied).sub(1), borrowAvail);
-        } else {
-          borrowAvail = 0;
-        }
       } else {
         borrowAvail = 0;
       }
@@ -567,6 +581,22 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
 
   function cToken() public view returns (address) {
     return getAddress(_CTOKEN_SLOT);
+  }
+
+  function setLodeVault(address _value) public onlyGovernance {
+    setAddress(_LODE_VAULT_SLOT, _value);
+  }
+
+  function lodeVault() public view returns (address) {
+    return getAddress(_LODE_VAULT_SLOT);
+  }
+
+  function setPotPool(address _value) public onlyGovernance {
+    setAddress(_POTPOOL_SLOT, _value);
+  }
+
+  function potPool() public view returns (address) {
+    return getAddress(_POTPOOL_SLOT);
   }
 
   function finalizeUpgrade() external onlyGovernance updateSupplyInTheEnd {
