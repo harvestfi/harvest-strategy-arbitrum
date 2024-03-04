@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../../base/interface/IUniversalLiquidator.sol";
-import "../../base/interface/IVault.sol";
 import "../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../../base/interface/lodestar/CTokenInterfaces.sol";
 import "../../base/interface/lodestar/ComptrollerInterface.sol";
@@ -52,7 +51,6 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     address _vault,
     address _cToken,
     address _comptroller,
-    address _rewardToken,
     uint256 _borrowTargetFactorNumerator,
     uint256 _collateralFactorNumerator,
     uint256 _factorDenominator,
@@ -64,7 +62,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       _underlying,
       _vault,
       _comptroller,
-      _rewardToken,
+      weth,
       harvestMSIG
     );
 
@@ -269,6 +267,13 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     if (amount < balance) {
       balance = amount;
     }
+    uint256 supplyCap = ComptrollerInterface(rewardPool()).supplyCaps(_cToken);
+    uint256 currentSupplied = CTokenInterface(_cToken).totalSupply().mul(CTokenInterface(_cToken).exchangeRateCurrent()).div(1e18);
+    if (currentSupplied > supplyCap) {
+      return;
+    } else if (supplyCap.sub(currentSupplied) < balance) {
+      balance = supplyCap.sub(currentSupplied).sub(1);
+    }
     if (_underlying == weth) {
       IWETH(weth).withdraw(balance);
       CErc20Interface(_cToken).mint{value: balance}();
@@ -352,11 +357,18 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       borrowDiff = 0;
     } else {
       borrowDiff = borrowTarget.sub(borrowed);
+      uint256 supplyCap = ComptrollerInterface(rewardPool()).supplyCaps(_cToken);
+      uint256 currentSupplied = CTokenInterface(_cToken).totalSupply().mul(CTokenInterface(_cToken).exchangeRateCurrent()).div(1e18);
       uint256 borrowCap = ComptrollerInterface(rewardPool()).borrowCaps(_cToken);
       uint256 totalBorrows = CTokenInterface(_cToken).totalBorrows();
       uint256 borrowAvail;
       if (totalBorrows < borrowCap) {
         borrowAvail = borrowCap.sub(totalBorrows).sub(1);
+        if (currentSupplied < supplyCap) {
+          borrowAvail = Math.min(supplyCap.sub(currentSupplied).sub(1), borrowAvail);
+        } else {
+          borrowAvail = 0;
+        }
       } else {
         borrowAvail = 0;
       }
@@ -446,11 +458,18 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     uint256 balance = supplied.sub(borrowed);
     uint256 borrowTarget = balance.mul(_borrowNum).div(_denom.sub(_borrowNum));
     {
+      uint256 supplyCap = ComptrollerInterface(rewardPool()).supplyCaps(_cToken);
+      uint256 currentSupplied = CTokenInterface(_cToken).totalSupply().mul(CTokenInterface(_cToken).exchangeRateCurrent()).div(1e18);
       uint256 borrowCap = ComptrollerInterface(rewardPool()).borrowCaps(_cToken);
       uint256 totalBorrows = CTokenInterface(_cToken).totalBorrows();
       uint256 borrowAvail;
       if (totalBorrows < borrowCap) {
         borrowAvail = borrowCap.sub(totalBorrows).sub(1);
+        if (currentSupplied < supplyCap) {
+          borrowAvail = Math.min(supplyCap.sub(currentSupplied).sub(1), borrowAvail);
+        } else {
+          borrowAvail = 0;
+        }
       } else {
         borrowAvail = 0;
       }
