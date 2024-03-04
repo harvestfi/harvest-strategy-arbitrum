@@ -23,7 +23,7 @@ module.exports = {
       blockGasLimit: 100e6,
       forking: {
         url: `https://arb-mainnet.g.alchemy.com/v2/${secret.alchemyKey}`,
-        blockNumber: 93059350, // <-- edit here
+        blockNumber: 185225290, // <-- edit here
       },
     },
     mainnet: {
@@ -40,7 +40,7 @@ module.exports = {
         settings: {
           optimizer: {
             enabled: true,
-            runs: 200,
+            runs: 1,
           },
         },
       },
@@ -55,7 +55,7 @@ module.exports = {
   contractSizer: {
     alphaSort: false,
     disambiguatePaths: false,
-    runOnCompile: false,
+    runOnCompile: true,
     strict: false,
   },
 };
