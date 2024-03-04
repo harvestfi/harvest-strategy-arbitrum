@@ -23,7 +23,6 @@ contract LodestarFoldStrategyV2Mainnet_WBTC is LodestarFoldStrategyV2 {
       _vault,
       cToken,
       comptroller,
-      lode,
       730,
       750,
       1000,

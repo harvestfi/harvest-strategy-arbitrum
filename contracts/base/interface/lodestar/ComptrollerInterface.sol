@@ -96,4 +96,5 @@ abstract contract ComptrollerInterface {
 
     function claimComp(address holder) external virtual;
     function borrowCaps(address cToken) external view virtual returns (uint256);
+    function supplyCaps(address cToken) external view virtual returns (uint256);
 }

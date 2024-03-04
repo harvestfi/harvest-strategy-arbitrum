@@ -23,7 +23,6 @@ contract LodestarFoldStrategyV2Mainnet_ETH is LodestarFoldStrategyV2 {
       _vault,
       cToken,
       comptroller,
-      lode,
       780,
       800,
       1000,

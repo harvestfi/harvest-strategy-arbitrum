@@ -23,7 +23,6 @@ contract LodestarFoldStrategyV2Mainnet_MAGIC is LodestarFoldStrategyV2 {
       _vault,
       cToken,
       comptroller,
-      lode,
       480,
       500,
       1000,

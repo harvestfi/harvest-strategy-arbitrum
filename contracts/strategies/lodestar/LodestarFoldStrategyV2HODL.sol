@@ -100,7 +100,7 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
     borrowedInUnderlying = CTokenInterface(_cToken).borrowBalanceCurrent(address(this));
   }
 
-  function depositArbCheck() public pure returns (bool) {
+  function depositArbCheck() external pure returns (bool) {
     // there's no arb here.
     return true;
   }
@@ -127,7 +127,7 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
   /**
   * Exits Moonwell and transfers everything to the vault.
   */
-  function withdrawAllToVault() public restricted updateSupplyInTheEnd {
+  function withdrawAllToVault() external restricted updateSupplyInTheEnd {
     address _underlying = underlying();
     _withdrawMaximum(true);
     if (IERC20(_underlying).balanceOf(address(this)) > 0) {
@@ -144,10 +144,10 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
       _claimRewards();
       _liquidateRewards();
     }
-    _redeemMaximum();
+    _redeemMaximumWithFlashloan();
   }
 
-  function withdrawToVault(uint256 amountUnderlying) public restricted updateSupplyInTheEnd {
+  function withdrawToVault(uint256 amountUnderlying) external restricted updateSupplyInTheEnd {
     address _underlying = underlying();
     uint256 balance = IERC20(_underlying).balanceOf(address(this));
     if (amountUnderlying <= balance) {
@@ -168,21 +168,10 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
   /**
   * Withdraws all assets, liquidates XVS, and invests again in the required ratio.
   */
-  function doHardWork() public restricted {
+  function doHardWork() external restricted {
     _claimRewards();
     _liquidateRewards();
     _investAllUnderlying();
-  }
-
-  /**
-  * Redeems maximum that can be redeemed from Venus.
-  * Redeem the minimum of the underlying we own, and the underlying that the vToken can
-  * immediately retrieve. Ensures that `redeemMaximum` doesn't fail silently.
-  *
-  * DOES NOT ensure that the strategy vUnderlying balance becomes 0.
-  */
-  function _redeemMaximum() internal {
-    _redeemMaximumWithFlashloan();
   }
 
   /**
@@ -202,7 +191,7 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
   /**
   * Salvages a token.
   */
-  function salvage(address recipient, address token, uint256 amount) public onlyGovernance {
+  function salvage(address recipient, address token, uint256 amount) external onlyGovernance {
     // To make sure that governance cannot come in and take away the coins
     require(!unsalvagableTokens(token), "NS");
     IERC20(token).safeTransfer(recipient, amount);
@@ -212,7 +201,7 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
     ComptrollerInterface(rewardPool()).claimComp(address(this));
   }
 
-  function addRewardToken(address _token) public onlyGovernance {
+  function addRewardToken(address _token) external onlyGovernance {
     rewardTokens.push(_token);
   }
 
@@ -554,7 +543,7 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
     setUint256(_FACTORDENOMINATOR_SLOT, _denominator);
   }
 
-  function factorDenominator() public view returns (uint256) {
+  function factorDenominator() internal view returns (uint256) {
     return getUint256(_FACTORDENOMINATOR_SLOT);
   }
 
@@ -579,7 +568,7 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
     setAddress(_CTOKEN_SLOT, _target);
   }
 
-  function cToken() public view returns (address) {
+  function cToken() internal view returns (address) {
     return getAddress(_CTOKEN_SLOT);
   }
 
@@ -587,7 +576,7 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
     setAddress(_LODE_VAULT_SLOT, _value);
   }
 
-  function lodeVault() public view returns (address) {
+  function lodeVault() internal view returns (address) {
     return getAddress(_LODE_VAULT_SLOT);
   }
 
@@ -595,7 +584,7 @@ contract LodestarFoldStrategyV2HODL is BaseUpgradeableStrategy {
     setAddress(_POTPOOL_SLOT, _value);
   }
 
-  function potPool() public view returns (address) {
+  function potPool() internal view returns (address) {
     return getAddress(_POTPOOL_SLOT);
   }
 

@@ -136,7 +136,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       _claimRewards();
       _liquidateRewards();
     }
-    _redeemMaximum();
+    _redeemMaximumWithFlashloan();
   }
 
   function withdrawToVault(uint256 amountUnderlying) public restricted updateSupplyInTheEnd {
@@ -164,17 +164,6 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     _claimRewards();
     _liquidateRewards();
     _investAllUnderlying();
-  }
-
-  /**
-  * Redeems maximum that can be redeemed from Venus.
-  * Redeem the minimum of the underlying we own, and the underlying that the vToken can
-  * immediately retrieve. Ensures that `redeemMaximum` doesn't fail silently.
-  *
-  * DOES NOT ensure that the strategy vUnderlying balance becomes 0.
-  */
-  function _redeemMaximum() internal {
-    _redeemMaximumWithFlashloan();
   }
 
   /**
@@ -540,7 +529,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     setUint256(_FACTORDENOMINATOR_SLOT, _denominator);
   }
 
-  function factorDenominator() public view returns (uint256) {
+  function factorDenominator() internal view returns (uint256) {
     return getUint256(_FACTORDENOMINATOR_SLOT);
   }
 
@@ -565,7 +554,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     setAddress(_CTOKEN_SLOT, _target);
   }
 
-  function cToken() public view returns (address) {
+  function cToken() internal view returns (address) {
     return getAddress(_CTOKEN_SLOT);
   }
 

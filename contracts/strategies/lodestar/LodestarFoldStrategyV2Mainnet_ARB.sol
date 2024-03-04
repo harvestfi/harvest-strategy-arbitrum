@@ -22,7 +22,6 @@ contract LodestarFoldStrategyV2Mainnet_ARB is LodestarFoldStrategyV2 {
       _vault,
       cToken,
       comptroller,
-      lode,
       680,
       700,
       1000,

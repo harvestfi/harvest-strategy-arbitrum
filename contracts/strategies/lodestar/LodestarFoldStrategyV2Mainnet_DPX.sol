@@ -23,7 +23,6 @@ contract LodestarFoldStrategyV2Mainnet_DPX is LodestarFoldStrategyV2 {
       _vault,
       cToken,
       comptroller,
-      lode,
       130,
       150,
       1000,

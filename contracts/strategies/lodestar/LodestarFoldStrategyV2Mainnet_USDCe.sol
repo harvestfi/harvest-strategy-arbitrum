@@ -23,7 +23,6 @@ contract LodestarFoldStrategyV2Mainnet_USDCe is LodestarFoldStrategyV2 {
       _vault,
       cToken,
       comptroller,
-      lode,
       800,
       820,
       1000,
