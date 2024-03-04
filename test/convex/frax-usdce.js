@@ -56,12 +56,13 @@ describe("Arbitrum Mainnet Convex FRAX-USDCe", function() {
 
   before(async function() {
     governance = addresses.Governance;
+    ulowner = addresses.ULOwner;
     accounts = await web3.eth.getAccounts();
 
     farmer1 = accounts[1];
 
     // impersonate accounts
-    await impersonates([governance, underlyingWhale]);
+    await impersonates([governance, underlyingWhale, ulowner]);
 
     let etherGiver = accounts[9];
     await send.ether(etherGiver, governance, "100" + "000000000000000000");
@@ -76,6 +77,7 @@ describe("Arbitrum Mainnet Convex FRAX-USDCe", function() {
       "liquidation": [
         {"uniV3": [crv, weth]},
       ],
+      "ULOwner": addresses.ULOwner
     });
 
     // whale send underlying to farmers
