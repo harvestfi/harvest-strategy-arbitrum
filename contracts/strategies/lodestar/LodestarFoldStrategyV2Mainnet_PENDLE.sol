@@ -16,7 +16,6 @@ contract LodestarFoldStrategyV2Mainnet_PENDLE is LodestarFoldStrategyV2 {
     address cToken = address(0x39c27DfdC9364a976926a820c8CAA8Fd035D0727);
     address comptroller = address(0xa86DD95c210dd186Fa7639F93E4177E97d057576);
     address lode = address(0xF19547f9ED24aA66b03c3a552D181Ae334FBb8DB);
-    address arb = address(0x912CE59144191C1204E64559FE8253a0e49E6548);
     LodestarFoldStrategyV2.initializeBaseStrategy(
       _storage,
       underlying,
@@ -25,7 +24,6 @@ contract LodestarFoldStrategyV2Mainnet_PENDLE is LodestarFoldStrategyV2 {
       comptroller,
       480,
       500,
-      1000,
       true
     );
     rewardTokens = [lode, arb];

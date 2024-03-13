@@ -23,7 +23,6 @@ contract LodestarFoldStrategyV2HODLMainnet_ARB is LodestarFoldStrategyV2HODL {
       comptroller,
       680,
       700,
-      1000,
       true,
       address(0x710A1AB6Cb8412DE9613ad6c7195453Ce8b5ca71), // LODE vault
       address(0) //potPool (to be set after deployment)

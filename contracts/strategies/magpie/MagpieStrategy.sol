@@ -295,13 +295,6 @@ contract MagpieStrategy is BaseUpgradeableStrategy {
         _setSell(s);
     }
 
-    /**
-     * Sets the minimum amount of CRV needed to trigger a sale.
-     */
-    function setSellFloor(uint256 floor) public onlyGovernance {
-        _setSellFloor(floor);
-    }
-
     function finalizeUpgrade() external onlyGovernance {
         _finalizeUpgrade();
     }

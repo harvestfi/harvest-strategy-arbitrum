@@ -15,7 +15,6 @@ contract LodestarFoldStrategyV2HODLMainnet_USDT is LodestarFoldStrategyV2HODL {
     address underlying = address(0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9);
     address cToken = address(0x9365181A7df82a1cC578eAE443EFd89f00dbb643);
     address comptroller = address(0xa86DD95c210dd186Fa7639F93E4177E97d057576);
-    address arb = address(0x912CE59144191C1204E64559FE8253a0e49E6548);
     LodestarFoldStrategyV2HODL.initializeBaseStrategy(
       _storage,
       underlying,
@@ -24,7 +23,6 @@ contract LodestarFoldStrategyV2HODLMainnet_USDT is LodestarFoldStrategyV2HODL {
       comptroller,
       680,
       700,
-      1000,
       true,
       address(0x710A1AB6Cb8412DE9613ad6c7195453Ce8b5ca71), // LODE vault
       address(0) //potPool (to be set after deployment)

@@ -304,13 +304,6 @@ contract AuraStrategy is BaseUpgradeableStrategy {
     _setSell(s);
   }
 
-  /**
-  * Sets the minimum amount of CRV needed to trigger a sale.
-  */
-  function setSellFloor(uint256 floor) public onlyGovernance {
-    _setSellFloor(floor);
-  }
-
   /** Aura deposit pool ID
    */
   function _setAuraPoolId(uint256 _value) internal {

@@ -328,13 +328,6 @@ contract PoisonStrategyLP is BaseUpgradeableStrategy {
     _setSell(s);
   }
 
-  /**
-  * Sets the minimum amount of CRV needed to trigger a sale.
-  */
-  function setSellFloor(uint256 floor) public onlyGovernance {
-    _setSellFloor(floor);
-  }
-
   // masterchef rewards pool ID
   function _setPoolId(uint256 _value) internal {
     setUint256(_POOLID_SLOT, _value);

@@ -17,9 +17,9 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
-  address public constant weth = address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
-  address public constant bVault = address(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
-  address public constant harvestMSIG = address(0xf3D1A027E858976634F81B7c41B09A05A46EdA21);
+  address internal constant weth = address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
+  address internal constant bVault = address(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
+  address internal constant harvestMSIG = address(0xf3D1A027E858976634F81B7c41B09A05A46EdA21);
 
   // additional storage slots (on top of BaseUpgradeableStrategy ones) are defined here
   bytes32 internal constant _CTOKEN_SLOT = 0x316ad921d519813e6e41c0e056b79e4395192c2b101f8b61cf5b94999360d568;
@@ -37,6 +37,12 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
   // this would be reset on each upgrade
   address[] public rewardTokens;
 
+  uint256 internal arbBalanceStart;
+  uint256 internal arbBalanceLast;
+  uint256 internal lastRewardTime;
+  uint256 internal arbPerSec;
+  address internal constant arb = address(0x912CE59144191C1204E64559FE8253a0e49E6548);
+
   constructor() public BaseUpgradeableStrategy() {
     assert(_CTOKEN_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.cToken")) - 1));
     assert(_COLLATERALFACTORNUMERATOR_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.collateralFactorNumerator")) - 1));
@@ -53,7 +59,6 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     address _comptroller,
     uint256 _borrowTargetFactorNumerator,
     uint256 _collateralFactorNumerator,
-    uint256 _factorDenominator,
     bool _fold
   )
   public initializer {
@@ -67,15 +72,15 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     );
 
     if (_underlying != weth) {
-      require(CErc20Interface(_cToken).underlying() == _underlying, "Underlying mismatch");
+      require(CErc20Interface(_cToken).underlying() == _underlying, "Und err");
     }
 
     _setCToken(_cToken);
 
-    require(_collateralFactorNumerator < _factorDenominator, "Numerator should be smaller than denominator");
-    require(_borrowTargetFactorNumerator < _collateralFactorNumerator, "Target should be lower than limit");
-    _setFactorDenominator(_factorDenominator);
-    _setCollateralFactorNumerator(_collateralFactorNumerator);
+    require(_collateralFactorNumerator < 1000, "Num !< Den");
+    require(_borrowTargetFactorNumerator < _collateralFactorNumerator, "Tar !< Num");
+    setUint256(_FACTORDENOMINATOR_SLOT, 1000);
+    setUint256(_COLLATERALFACTORNUMERATOR_SLOT, _borrowTargetFactorNumerator);
     setUint256(_BORROWTARGETFACTORNUMERATOR_SLOT, _borrowTargetFactorNumerator);
     setBoolean(_FOLD_SLOT, _fold);
     address[] memory markets = new address[](1);
@@ -97,7 +102,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     return true;
   }
 
-  function unsalvagableTokens(address token) public view returns (bool) {
+  function unsalvagableTokens(address token) internal view returns (bool) {
     return (token == rewardToken() || token == underlying() || token == cToken());
   }
 
@@ -177,7 +182,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       fold()? borrowTargetFactorNumerator():0
       );
     uint256 balanceAfter = IERC20(_underlying).balanceOf(address(this));
-    require(balanceAfter.sub(balanceBefore) >= amountUnderlying, "Unable to withdraw the entire amountUnderlying");
+    require(balanceAfter.sub(balanceBefore) >= amountUnderlying, "Redeem amt");
   }
 
   /**
@@ -185,7 +190,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
   */
   function salvage(address recipient, address token, uint256 amount) public onlyGovernance {
     // To make sure that governance cannot come in and take away the coins
-    require(!unsalvagableTokens(token), "token is defined as not salvagable");
+    require(!unsalvagableTokens(token), "not salvagable");
     IERC20(token).safeTransfer(recipient, amount);
   }
 
@@ -208,10 +213,13 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     for (uint256 i; i < rewardTokens.length; i++) {
       address token = rewardTokens[i];
       uint256 balance = IERC20(token).balanceOf(address(this));
-      if (balance == 0) {
-          continue;
+      if (token == arb) {
+        if (balance > arbBalanceLast) {
+          _updateArbDist(balance);
+        }
+        balance = _getArbAmt();
       }
-      if (token != _rewardToken){
+      if (balance > 0 && token != _rewardToken){
           IERC20(token).safeApprove(_universalLiquidator, 0);
           IERC20(token).safeApprove(_universalLiquidator, balance);
           IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, balance, 1, address(this));
@@ -231,6 +239,21 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       IERC20(_rewardToken).safeApprove(_universalLiquidator, remainingRewardBalance);
       IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, _underlying, remainingRewardBalance, 1, address(this));
     }
+  }
+
+  function _updateArbDist(uint256 balance) internal {
+    arbBalanceStart = balance;
+    arbBalanceLast = balance;
+    lastRewardTime = block.timestamp.sub(86400);
+    arbPerSec = balance.div(691200);
+  }
+
+  function _getArbAmt() internal returns (uint256) {
+    uint256 balance = IERC20(arb).balanceOf(address(this));
+    uint256 earned = Math.min(block.timestamp.sub(lastRewardTime).mul(arbPerSec), balance);
+    arbBalanceLast = balance.sub(earned);
+    lastRewardTime = block.timestamp;
+    return earned;
   }
 
   /**
@@ -260,7 +283,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     uint256 currentSupplied = CTokenInterface(_cToken).totalSupply().mul(CTokenInterface(_cToken).exchangeRateCurrent()).div(1e18);
     if (currentSupplied > supplyCap) {
       return;
-    } else if (supplyCap.sub(currentSupplied) < balance) {
+    } else if (supplyCap.sub(currentSupplied) <= balance) {
       balance = supplyCap.sub(currentSupplied).sub(1);
     }
     if (_underlying == weth) {
@@ -376,7 +399,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       address[] memory tokens = new address[](1);
       uint256[] memory amounts = new uint256[](1);
       bytes memory userData = abi.encode(0);
-      tokens[0] = underlying();
+      tokens[0] = _underlying;
       amounts[0] = borrowDiff;
       makingFlashDeposit = true;
       IBVault(bVault).flashLoan(address(this), tokens, amounts, userData);
@@ -411,7 +434,7 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       address[] memory tokens = new address[](1);
       uint256[] memory amounts = new uint256[](1);
       bytes memory userData = abi.encode(0);
-      tokens[0] = underlying();
+      tokens[0] = _underlying;
       amounts[0] = borrowDiff;
       makingFlashWithdrawal = true;
       IBVault(bVault).flashLoan(address(this), tokens, amounts, userData);
@@ -515,9 +538,9 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
   // updating collateral factor
   // note 1: one should settle the loan first before calling this
   // note 2: collateralFactorDenominator is 1000, therefore, for 20%, you need 200
-  function _setCollateralFactorNumerator(uint256 _numerator) internal {
-    require(_numerator <= uint(820).mul(factorDenominator()).div(1000), "Collateral factor cannot be this high");
-    require(_numerator > borrowTargetFactorNumerator(), "Collateral factor should be higher than borrow target");
+  function _setCollateralFactorNumerator(uint256 _numerator) public onlyGovernance {
+    require(_numerator <= factorDenominator(), "Too high");
+    require(_numerator > borrowTargetFactorNumerator(), "Too low");
     setUint256(_COLLATERALFACTORNUMERATOR_SLOT, _numerator);
   }
 
@@ -525,16 +548,12 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
     return getUint256(_COLLATERALFACTORNUMERATOR_SLOT);
   }
 
-  function _setFactorDenominator(uint256 _denominator) internal {
-    setUint256(_FACTORDENOMINATOR_SLOT, _denominator);
-  }
-
   function factorDenominator() internal view returns (uint256) {
     return getUint256(_FACTORDENOMINATOR_SLOT);
   }
 
   function setBorrowTargetFactorNumerator(uint256 _numerator) public onlyGovernance {
-    require(_numerator < collateralFactorNumerator(), "Target should be lower than collateral limit");
+    require(_numerator < collateralFactorNumerator(), "Too high");
     setUint256(_BORROWTARGETFACTORNUMERATOR_SLOT, _numerator);
   }
 

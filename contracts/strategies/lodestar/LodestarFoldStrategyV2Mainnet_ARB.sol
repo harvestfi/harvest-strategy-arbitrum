@@ -24,7 +24,6 @@ contract LodestarFoldStrategyV2Mainnet_ARB is LodestarFoldStrategyV2 {
       comptroller,
       680,
       700,
-      1000,
       true
     );
     rewardTokens = [lode];

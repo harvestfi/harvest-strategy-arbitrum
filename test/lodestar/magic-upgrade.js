@@ -12,21 +12,24 @@ const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("LodestarFoldStrategyV2Mainnet_PENDLE");
+const Strategy = artifacts.require("LodestarFoldStrategyV2Mainnet_MAGIC");
 
-// Developed and tested at blockNumber 183332200
+// Developed and tested at blockNumber 188352500
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Arbitrum Mainnet Lodestar Fold PENDLE", function() {
+describe("Arbitrum Mainnet Lodestar Fold MAGIC Upgrade", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x2Edf956452E65F70DF7Ce16F6c5918275022e9f8";
+  let underlyingWhale = "0x4fcE03fBb842D615BF2F863B00178A164CfBFd5c";
   let lode = "0xF19547f9ED24aA66b03c3a552D181Ae334FBb8DB";
   let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
+  let arbAddr = "0x912CE59144191C1204E64559FE8253a0e49E6548";
+  let arbWhale = "0xE1f30C44Bd1c8d537BaCb5CE34740578158b006f";
+  let arb;
 
   // parties in the protocol
   let governance;
@@ -41,13 +44,15 @@ describe("Arbitrum Mainnet Lodestar Fold PENDLE", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0x0c880f6761F1af8d9Aa9C466984b80DAb9a8c9e8");
+    underlying = await IERC20.at("0x539bdE0d7Dbd336b79148AA742883198BBF60342");
     console.log("Fetching Underlying at: ", underlying.address);
+    arb = await IERC20.at(arbAddr);
   }
 
   async function setupBalance(){
     let etherGiver = accounts[9];
     await web3.eth.sendTransaction({ from: etherGiver, to: underlyingWhale, value: 10e18});
+    await web3.eth.sendTransaction({ from: etherGiver, to: arbWhale, value: 10e18});
 
     farmerBalance = await underlying.balanceOf(underlyingWhale);
     await underlying.transfer(farmer1, farmerBalance, { from: underlyingWhale });
@@ -60,16 +65,17 @@ describe("Arbitrum Mainnet Lodestar Fold PENDLE", function() {
     farmer1 = accounts[1];
 
     // impersonate accounts
-    await impersonates([governance, underlyingWhale]);
+    await impersonates([governance, underlyingWhale, arbWhale]);
 
     let etherGiver = accounts[9];
     await web3.eth.sendTransaction({ from: etherGiver, to: governance, value: 10e18});
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": null,
+      "existingVaultAddress": "0x36e53BFC4A8c306B8297A4A79fB2aC5CbFa391FB",
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
+      "upgradeStrategy": true,
       "underlying": underlying,
       "governance": governance,
       "liquidation": [
@@ -84,16 +90,21 @@ describe("Arbitrum Mainnet Lodestar Fold PENDLE", function() {
 
   describe("Happy path", function() {
     it("Farmer should earn money", async function() {
+      await underlying.transfer(strategy.address, new BigNumber(1e21), {from:farmer1});
       let farmerOldBalance = new BigNumber(await underlying.balanceOf(farmer1));
-      await depositVault(farmer1, underlying, vault, farmerBalance);
+      await depositVault(farmer1, underlying, vault, farmerOldBalance);
 
-      let hours = 10;
-      let blocksPerHour = 100;
+      let hours = 20;
+      let blocksPerHour = 3600*2.2;
       let oldSharePrice;
       let newSharePrice;
 
       for (let i = 0; i < hours; i++) {
         console.log("loop ", i);
+
+        if (i % 7 == 0) {
+          await arb.transfer(strategy.address, new BigNumber(100e18), { from: arbWhale });
+        }
 
         oldSharePrice = new BigNumber(await vault.getPricePerFullShare());
         await controller.doHardWork(vault.address, { from: governance });

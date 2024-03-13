@@ -27,6 +27,9 @@ describe("Arbitrum Mainnet Lodestar Fold MAGIC", function() {
   let underlyingWhale = "0xDC25378ef9e3cA26129d15904535168c5D36ff8f";
   let lode = "0xF19547f9ED24aA66b03c3a552D181Ae334FBb8DB";
   let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
+  let arbAddr = "0x912CE59144191C1204E64559FE8253a0e49E6548";
+  let arbWhale = "0xE1f30C44Bd1c8d537BaCb5CE34740578158b006f";
+  let arb;
 
   // parties in the protocol
   let governance;
@@ -43,11 +46,13 @@ describe("Arbitrum Mainnet Lodestar Fold MAGIC", function() {
   async function setupExternalContracts() {
     underlying = await IERC20.at("0x539bdE0d7Dbd336b79148AA742883198BBF60342");
     console.log("Fetching Underlying at: ", underlying.address);
+    arb = await IERC20.at(arbAddr);
   }
 
   async function setupBalance(){
     let etherGiver = accounts[9];
     await web3.eth.sendTransaction({ from: etherGiver, to: underlyingWhale, value: 10e18});
+    await web3.eth.sendTransaction({ from: etherGiver, to: arbWhale, value: 10e18});
 
     farmerBalance = await underlying.balanceOf(underlyingWhale);
     await underlying.transfer(farmer1, farmerBalance, { from: underlyingWhale });
@@ -60,7 +65,7 @@ describe("Arbitrum Mainnet Lodestar Fold MAGIC", function() {
     farmer1 = accounts[1];
 
     // impersonate accounts
-    await impersonates([governance, underlyingWhale]);
+    await impersonates([governance, underlyingWhale, arbWhale]);
 
     let etherGiver = accounts[9];
     await web3.eth.sendTransaction({ from: etherGiver, to: governance, value: 10e18});
@@ -87,13 +92,17 @@ describe("Arbitrum Mainnet Lodestar Fold MAGIC", function() {
       let farmerOldBalance = new BigNumber(await underlying.balanceOf(farmer1));
       await depositVault(farmer1, underlying, vault, farmerBalance);
 
-      let hours = 10;
-      let blocksPerHour = 3600;
+      let hours = 20;
+      let blocksPerHour = 3600*2.2;
       let oldSharePrice;
       let newSharePrice;
 
       for (let i = 0; i < hours; i++) {
         console.log("loop ", i);
+
+        if (i % 7 == 0) {
+          await arb.transfer(strategy.address, new BigNumber(100e18), { from: arbWhale });
+        }
 
         oldSharePrice = new BigNumber(await vault.getPricePerFullShare());
         await controller.doHardWork(vault.address, { from: governance });
