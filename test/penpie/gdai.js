@@ -12,7 +12,7 @@ const IERC20 = artifacts.require("IERC20");
 
 const Strategy = artifacts.require("PenpieStrategyMainnet_gDAI");
 
-// Developed and tested at blockNumber 197549660
+// Developed and tested at blockNumber 197566950
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
 describe("Arbitrum Mainnet Penpie gDAI", function () {
