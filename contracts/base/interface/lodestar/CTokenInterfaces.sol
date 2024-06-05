@@ -283,7 +283,7 @@ abstract contract CErc20Interface is CErc20Storage {
     /*** User Interface ***/
 
     function mint(uint mintAmount) external virtual returns (uint);
-    function mint() external payable virtual;
+    function mint() external payable virtual returns (uint);
 
     function redeem(uint redeemTokens) external virtual returns (uint);
 
@@ -296,7 +296,7 @@ abstract contract CErc20Interface is CErc20Storage {
     function borrowBehalf(uint borrowAmount, address borrowee) external virtual returns (uint);
 
     function repayBorrow(uint repayAmount) external virtual returns (uint);
-    function repayBorrow() external payable virtual;
+    function repayBorrow() external payable virtual returns (uint);
 
     function repayBorrowBehalf(address borrower, uint repayAmount) external virtual returns (uint);
 
