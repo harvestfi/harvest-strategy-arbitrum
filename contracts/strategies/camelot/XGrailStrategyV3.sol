@@ -104,6 +104,12 @@ contract XGrailStrategyV3 is BaseUpgradeableStrategy {
         return IXGrail(underlying()).dividendsAddress();
     }
 
+    function addRewardToken(address _token, bool _lpV2, bool _lpV3) public onlyGovernance {
+        rewardTokens.push(_token);
+        isLpV2[_token] = _lpV2;
+        isLpV3[_token] = _lpV3;
+    }
+
     function _liquidateRewards(uint256 _xGrailAmount) internal {
         address _rewardToken = rewardToken();
         address _universalLiquidator = universalLiquidator();
@@ -433,12 +439,6 @@ contract XGrailStrategyV3 is BaseUpgradeableStrategy {
     }
 
     function finalizeUpgrade() external onlyGovernance {
-        address ethUsdcV2 = address(0x84652bb2539513BAf36e225c930Fdd8eaa63CE27);
-        address ethUsdcV3 = address(0xd7Ef5Ac7fd4AAA7994F3bc1D273eAb1d1013530E);
-        rewardTokens = [ethUsdcV2, ethUsdcV3];
-        isLpV2[ethUsdcV2] = true;
-        isLpV2[ethUsdcV3] = false;
-        isLpV3[ethUsdcV3] = true;
         _finalizeUpgrade();
     }
 }
