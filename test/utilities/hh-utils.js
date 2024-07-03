@@ -5,6 +5,7 @@ const IRewardForwarder = artifacts.require("IRewardForwarder");
 const Vault = artifacts.require("VaultV2");
 const IUpgradeableStrategy = artifacts.require("IUpgradeableStrategy");
 const ILiquidatorRegistry = artifacts.require("IUniversalLiquidatorRegistry");
+const IDex = artifacts.require("IDex");
 
 const Utils = require("./Utils.js");
 
@@ -122,6 +123,25 @@ async function setupCoreProtocol(config) {
         config.liquidation[i][dex],
         {from: config.ULOwner}
       );
+    }
+  }
+
+  if(config.uniV3Fee) {
+    const uniV3Dex = await IDex.at("0x357F2E6Cd64A1fD4525e4eC22d7635115C9Ca3cb");
+    for (i=0;i<config.uniV3Fee.length;i++) {
+      await uniV3Dex.setFee(config.uniV3Fee[i][0], config.uniV3Fee[i][1], config.uniV3Fee[i][2], {from: config.ULOwner})
+    }
+  }
+  if(config.pancakeV3Fee) {
+    const uniV3Dex = await IDex.at("0x7F60C26a34D2B9D99D8DeFD321C32fd717bEB8A5");
+    for (i=0;i<config.pancakeV3Fee.length;i++) {
+      await uniV3Dex.setFee(config.pancakeV3Fee[i][0], config.pancakeV3Fee[i][1], config.pancakeV3Fee[i][2], {from: config.ULOwner})
+    }
+  }
+  if(config.curvePool) {
+    const curveDex = await IDex.at("0xd7c0e841dcaE03de0a099826F3cCef47cBD6f84C");
+    for (i=0;i<config.curvePool.length;i++) {
+      await curveDex.setPool(config.curvePool[i][0], config.curvePool[i][1], config.curvePool[i][2], {from: config.ULOwner})
     }
   }
 
