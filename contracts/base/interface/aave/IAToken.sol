@@ -7,6 +7,7 @@ import "./IInitializableAToken.sol";
 import "./IAaveIncentivesController.sol";
 
 interface IAToken is IERC20, IScaledBalanceToken, IInitializableAToken {
+	function POOL() external view returns (address);
 	/**
 	 * @dev Emitted after the mint action
 	 * @param from The address performing the mint

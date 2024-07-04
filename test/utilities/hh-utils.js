@@ -6,6 +6,7 @@ const Vault = artifacts.require("VaultV2");
 const IUpgradeableStrategy = artifacts.require("IUpgradeableStrategy");
 const ILiquidatorRegistry = artifacts.require("IUniversalLiquidatorRegistry");
 const IDex = artifacts.require("IDex");
+const IBalDex = artifacts.require("IBalDex");
 
 const Utils = require("./Utils.js");
 
@@ -144,6 +145,12 @@ async function setupCoreProtocol(config) {
       await curveDex.setPool(config.curvePool[i][0], config.curvePool[i][1], config.curvePool[i][2], {from: config.ULOwner})
     }
   }
+  if(config.balancerPool) {
+    const dex = await IBalDex.at("0x48aC1856D6B96ae9F29107a3A0Be825BFEF58014");
+    for (i=0;i<config.balancerPool.length;i++) {
+      await dex.setPool(config.balancerPool[i][0], config.balancerPool[i][1], config.balancerPool[i][2], {from: config.ULOwner})
+    }
+  }
 
   // default arguments are storage and vault addresses
   config.strategyArgs = config.strategyArgs || [
@@ -197,6 +204,7 @@ async function setupCoreProtocol(config) {
   }
 
   if (config.announceStrategy === true) {
+    await vault.withdrawAll({from: config.governance});
     // Announce switch, time pass, switch to strategy
     await vault.announceStrategyUpdate(strategy.address, { from: config.governance });
     console.log("Strategy switch announced. Waiting...");

@@ -500,7 +500,6 @@ contract LodestarFoldStrategyV2 is BaseUpgradeableStrategy {
       //update parameters
       borrowed = CTokenInterface(_cToken).borrowBalanceCurrent(address(this));
       supplied = CTokenInterface(_cToken).balanceOfUnderlying(address(this));
-      balance = supplied.sub(borrowed);
     }
   }
 
