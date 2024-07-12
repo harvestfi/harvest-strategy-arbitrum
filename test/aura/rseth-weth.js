@@ -7,28 +7,24 @@ const {
 } = require("../utilities/hh-utils.js");
 
 const addresses = require("../test-config.js");
-const { send } = require("@openzeppelin/test-helpers");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("AuraStrategyMainnet_bbaUSD");
+const Strategy = artifacts.require("AuraStrategyMainnet_rsETH_wETH");
 
-// Developed and tested at blockNumber 106080800
+// Developed and tested at blockNumber 231413700
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Arbitrum Mainnet Balancer bbaUSD", function() {
+describe("Arbitrum Mainnet Balancer rsETH-wETH", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0xCB33844b365c53D3462271cEe9B719B6Fc8bA06A";
+  let underlyingWhale = "0x40A97Cbf1aA720B5964F9686Ca90853eab95DB75";
   let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
-  let usdc = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8";
-  let bbausdc = "0x7c82A23B4C48D796dee36A9cA215b641C6a8709d";
-  let bbausd = "0xEE02583596AEE94ccCB7e8ccd3921d955f17982A";
 
   // parties in the protocol
   let governance;
@@ -43,7 +39,7 @@ describe("Arbitrum Mainnet Balancer bbaUSD", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xEE02583596AEE94ccCB7e8ccd3921d955f17982A");
+    underlying = await IERC20.at("0x90e6CB5249f5e1572afBF8A96D8A1ca6aCFFd739");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -74,7 +70,8 @@ describe("Arbitrum Mainnet Balancer bbaUSD", function() {
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
       "governance": governance,
-      "liquidation": [{"balancer": [usdc, bbausdc, bbausd]}, {"camelot": [weth, usdc]}]
+      "liquidation": [{"balancer": [weth, underlying.address]}],
+      "balancerPool": [[weth, underlying.address, "0x90e6cb5249f5e1572afbf8a96d8a1ca6acffd73900000000000000000000055c"]]
     });
 
     // whale send underlying to farmers
@@ -102,8 +99,8 @@ describe("Arbitrum Mainnet Balancer bbaUSD", function() {
         console.log("new shareprice: ", newSharePrice.toFixed());
         console.log("growth: ", newSharePrice.toFixed() / oldSharePrice.toFixed());
 
-        apr = (newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/300))*365;
-        apy = ((newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/300))+1)**365;
+        apr = (newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/240))*365;
+        apy = ((newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/240))+1)**365;
 
         console.log("instant APR:", apr*100, "%");
         console.log("instant APY:", (apy-1)*100, "%");
@@ -114,8 +111,8 @@ describe("Arbitrum Mainnet Balancer bbaUSD", function() {
       let farmerNewBalance = new BigNumber(await underlying.balanceOf(farmer1));
       Utils.assertBNGt(farmerNewBalance, farmerOldBalance);
 
-      apr = (farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/300))*365;
-      apy = ((farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/300))+1)**365;
+      apr = (farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/240))*365;
+      apy = ((farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/240))+1)**365;
 
       console.log("earned!");
       console.log("APR:", apr*100, "%");

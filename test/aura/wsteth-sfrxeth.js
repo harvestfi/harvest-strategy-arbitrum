@@ -7,24 +7,25 @@ const {
 } = require("../utilities/hh-utils.js");
 
 const addresses = require("../test-config.js");
-const { send } = require("@openzeppelin/test-helpers");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("AuraStrategyMainnet_wstETH_wETH");
+const Strategy = artifacts.require("AuraStrategyMainnet_wstETH_sfrxETH");
 
-// Developed and tested at blockNumber 106075800
+// Developed and tested at blockNumber 231052800
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Arbitrum Mainnet Balancer wstETH-wETH", function() {
+describe("Arbitrum Mainnet Balancer wstETH-sfrxETH", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0xD53A2ada124a94baC0f20a0Fe8BA5Dbaf4Bb03A1";
+  let underlyingWhale = "0xe8bd4747F2e2679f66Dad64b41fe65b64E29f4ff";
+  let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
+  let wsteth = "0x5979D7b546E38E414F7E9822514be443A4800529";
 
   // parties in the protocol
   let governance;
@@ -39,7 +40,7 @@ describe("Arbitrum Mainnet Balancer wstETH-wETH", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0x36bf227d6BaC96e2aB1EbB5492ECec69C691943f");
+    underlying = await IERC20.at("0xc2598280bFeA1Fe18dFcaBD21C7165c40c6859d3");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -70,6 +71,13 @@ describe("Arbitrum Mainnet Balancer wstETH-wETH", function() {
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
       "governance": governance,
+      "liquidation": [
+        {"balancer": [weth, wsteth, underlying.address]},
+      ],
+      "balancerPool": [
+        [weth, wsteth, "0x9791d590788598535278552eecd4b211bfc790cb000000000000000000000498"],
+        [wsteth, underlying.address, "0xc2598280bfea1fe18dfcabd21c7165c40c6859d30000000000000000000004f3"],
+      ]
     });
 
     // whale send underlying to farmers
@@ -97,8 +105,8 @@ describe("Arbitrum Mainnet Balancer wstETH-wETH", function() {
         console.log("new shareprice: ", newSharePrice.toFixed());
         console.log("growth: ", newSharePrice.toFixed() / oldSharePrice.toFixed());
 
-        apr = (newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/300))*365;
-        apy = ((newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/300))+1)**365;
+        apr = (newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/240))*365;
+        apy = ((newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/240))+1)**365;
 
         console.log("instant APR:", apr*100, "%");
         console.log("instant APY:", (apy-1)*100, "%");
@@ -109,8 +117,8 @@ describe("Arbitrum Mainnet Balancer wstETH-wETH", function() {
       let farmerNewBalance = new BigNumber(await underlying.balanceOf(farmer1));
       Utils.assertBNGt(farmerNewBalance, farmerOldBalance);
 
-      apr = (farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/300))*365;
-      apy = ((farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/300))+1)**365;
+      apr = (farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/240))*365;
+      apy = ((farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/240))+1)**365;
 
       console.log("earned!");
       console.log("APR:", apr*100, "%");
