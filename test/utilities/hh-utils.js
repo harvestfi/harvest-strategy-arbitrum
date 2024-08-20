@@ -139,10 +139,10 @@ async function setupCoreProtocol(config) {
       await uniV3Dex.setFee(config.pancakeV3Fee[i][0], config.pancakeV3Fee[i][1], config.pancakeV3Fee[i][2], {from: config.ULOwner})
     }
   }
-  if(config.curvePool) {
-    const curveDex = await IDex.at("0xd7c0e841dcaE03de0a099826F3cCef47cBD6f84C");
-    for (i=0;i<config.curvePool.length;i++) {
-      await curveDex.setPool(config.curvePool[i][0], config.curvePool[i][1], config.curvePool[i][2], {from: config.ULOwner})
+  if(config.curveSetup) {
+    const curveDex = await IDex.at("0xdeb935422497c8bD46B84e066c742d3A21BEe06b");
+    for (i=0;i<config.curveSetup.length;i++) {
+      await curveDex.pairSetup(config.curveSetup[i][0], config.curveSetup[i][1], config.curveSetup[i][2], config.curveSetup[i][3], {from: config.ULOwner})
     }
   }
   if(config.balancerPool) {
