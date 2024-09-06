@@ -8,7 +8,7 @@ const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol
 
 const Strategy = artifacts.require("AaveRewardStrategyMainnet_GHO");
 
-//This test was developed at blockNumber 242786850
+//This test was developed at blockNumber 249979880
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
 describe("Mainnet Aave GHO - Rewards", function() {
@@ -19,7 +19,7 @@ describe("Mainnet Aave GHO - Rewards", function() {
 
   // external setup
   let rewardSafe = "0xac140648435d03f784879cd789130F22Ef588Fcd";
-  let underlyingWhale = "0x66e96b67e9e6Cc1FCD7232DAa7BBb73b4af31fe4";
+  let underlyingWhale = "0xca3467E0683eB009A3f8bB8D4f9AF040684b9763";
   let usdc = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
   let arb = "0x912CE59144191C1204E64559FE8253a0e49E6548";
   let aaveUSDCn = "0x7CFaDFD5645B50bE87d546f42699d863648251ad";
@@ -74,15 +74,18 @@ describe("Mainnet Aave GHO - Rewards", function() {
       "governance": governance,
       "liquidation": [
         {"uniV3": [arb, usdc]},
-        {"balancer": [usdc, aaveUSDCn, gho]},
+        {"balancer": [usdc, gho]},
       ],
+      "balancerPool": [
+        [usdc, gho, "0xf890360473c12d8015da8dbf7af11da87337a065000000000000000000000570"],
+      ]
     });
 
     // whale send underlying to farmers
     await setupBalance();
 
-    const arbContract = await IERC20.at(arb);
-    await arbContract.approve("0x991bf7661F1F2695ac8AEFc4F9a19718d6424dc0", "115792089237316195423570985008687907853269984665640564039457584007913129639935", {from: rewardSafe});
+    // const arbContract = await IERC20.at(arb);
+    // await arbContract.approve("0x991bf7661F1F2695ac8AEFc4F9a19718d6424dc0", "115792089237316195423570985008687907853269984665640564039457584007913129639935", {from: rewardSafe});
   });
 
   describe("Happy path", function() {
