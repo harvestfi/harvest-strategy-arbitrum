@@ -17,6 +17,8 @@ contract NotionalStrategy is BaseUpgradeableStrategy {
 
   address public constant harvestMSIG = address(0xf3D1A027E858976634F81B7c41B09A05A46EdA21);
   address public constant weth = address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
+  address public constant usdc_bridged = address(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
+  address public constant usdc_native = address(0xaf88d065e77c8cC2239327C5EDb3A432268e5831);
 
   // additional storage slots (on top of BaseUpgradeableStrategy ones) are defined here
   bytes32 internal constant _N_PROXY_SLOT = 0x67fd3246a4588df947995025dbc3c07f488375e3daeac5ba64360dc24b94304b;
@@ -110,6 +112,9 @@ contract NotionalStrategy is BaseUpgradeableStrategy {
     }
 
     address _depositToken = IPrimeToken(underlying()).asset();
+    if (_depositToken == usdc_bridged) {
+      _depositToken = usdc_native;
+    }
     if (_depositToken != _rewardToken) {
       IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
       IERC20(_rewardToken).safeApprove(_universalLiquidator, remainingRewardBalance);
@@ -130,6 +135,8 @@ contract NotionalStrategy is BaseUpgradeableStrategy {
       currencyId = uint16(1);
       IWETH(weth).withdraw(balance);
       value = balance;
+    } else if (token == usdc_native) {
+      currencyId = uint16(3);
     } else {
       currencyId = INProxy(_nProxy).getCurrencyId(token);
     }
