@@ -16,14 +16,13 @@ module.exports = {
   defaultNetwork: "hardhat",
   networks: {
     hardhat: {
+      allowUnlimitedContractSize: true,
       accounts: {
         mnemonic: secret.mnemonic,
       },
-      chainId: 42161,
-      blockGasLimit: 100e6,
       forking: {
         url: `https://arb-mainnet.g.alchemy.com/v2/${secret.alchemyKey}`,
-        blockNumber: 249979880, // <-- edit here
+        blockNumber: 264419400, // <-- edit here
       },
     },
     mainnet: {

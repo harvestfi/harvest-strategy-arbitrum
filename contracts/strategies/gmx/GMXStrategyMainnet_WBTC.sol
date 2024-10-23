@@ -16,18 +16,17 @@ contract GMXStrategyMainnet_WBTC is GMXStrategy {
     address market = address(0x7C11F78Ce78768518D743E81Fdfa2F860C6b9A77);
     address reader = address(0x23D4Da5C7C6902D4C86d551CaE60d5755820df9E);
     address depositVault = address(0xF89e77e8Dc11691C9e8757e84aaFbCD8A67d7A55);
-    address withdrawVault = address(0x7C11F78Ce78768518D743E81Fdfa2F860C6b9A77);
-    address weth = address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
+    address withdrawVault = address(0x0628D46b5D145f183AdB6Ef1f2c97eD1C4701C55);
+    address oracle = address(0xa11B501c2dd83Acd29F6727570f2502FAaa617F2);
     GMXStrategy.initializeBaseStrategy(
       _storage,
       underlying,
       _vault,
       exchangeRouter,
       market,
-      reader,
       depositVault,
       withdrawVault,
-      weth
+      address(0xC5d323907696C513842a1ce4B48125cD8918f0b5)
     );
   }
 }
