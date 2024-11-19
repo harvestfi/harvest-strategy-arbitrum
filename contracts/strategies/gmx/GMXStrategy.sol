@@ -48,14 +48,14 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
 
   uint256 internal underlyingInPending;
   uint256 internal marketInPending;
-  uint256 internal txGasValue;
+  uint256 internal txGasValue = 2e16;
 
   mapping (bytes32 => PendingDeposit) public pendingDeposits;
   mapping (bytes32 => PendingWithdrawal) public pendingWithdrawals;
 
-  modifier onlyGmxKeeper() {
+  modifier onlyGmxKeeperOrGovernance() {
     address roleStore = IMarket(market()).roleStore();
-    require(IRoleStore(roleStore).hasRole(msg.sender, keccak256(abi.encode("CONTROLLER"))), "Unauthorised");
+    require(IRoleStore(roleStore).hasRole(msg.sender, keccak256(abi.encode("CONTROLLER"))) || msg.sender == governance());
     _;
   }
 
@@ -94,7 +94,6 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
     _setDepositVault(_depositVault);
     _setWithdrawVault(_withdrawVault);
     _setViewer(_viewer);
-    txGasValue = 2e16;
   }
 
   function investedUnderlyingBalance() public view returns (uint256) {
@@ -132,27 +131,22 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
   function _accrueFee() internal {
     uint256 fee;
     if (currentBalance() > storedBalance()) {
-      uint256 balanceIncrease = currentBalance().sub(storedBalance());
-      fee = balanceIncrease.mul(totalFeeNumerator()).div(feeDenominator());
+      fee = currentBalance().sub(storedBalance()).mul(totalFeeNumerator()).div(feeDenominator());
     }
     setUint256(_PENDING_FEE_SLOT, pendingFee().add(fee));
-    _updateStoredBalance();
-    // console.log("PENDING FEE               ", pendingFee());
   }
 
   function _handleFee() internal {
     _accrueFee();
     uint256 fee = pendingFee();
-    if (fee > 0) {
-      uint256 balanceIncrease = fee.mul(feeDenominator()).div(totalFeeNumerator());
-      uint256 balance = IERC20(underlying()).balanceOf(address(this));
-      if (fee > balance) {
+    if (fee > 10) {
+      if (fee > IERC20(underlying()).balanceOf(address(this))) {
         uint256 toWithdraw = IERC20(market()).balanceOf(address(this))
           .mul(fee)
-          .div(investedUnderlyingBalance().sub(balance));
+          .div(investedUnderlyingBalance());
         _withdraw(toWithdraw, true, false);
       } else {
-        _notifyProfitInRewardToken(underlying(), balanceIncrease);
+        _notifyProfitInRewardToken(underlying(), fee.mul(feeDenominator()).div(totalFeeNumerator()));
         setUint256(_PENDING_FEE_SLOT, 0);
       }
     }
@@ -172,8 +166,7 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
   * The strategy invests by supplying the underlying as a collateral.
   */
   function _investAllUnderlying() internal onlyNotPausedInvesting returns(bytes32) {
-    address _underlying = underlying();
-    uint256 underlyingBalance = IERC20(_underlying).balanceOf(address(this));
+    uint256 underlyingBalance = IERC20(underlying()).balanceOf(address(this));
     bytes32 depositHash;
     if (underlyingBalance > 0) {
       depositHash = _deposit(underlyingBalance);
@@ -182,24 +175,11 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
   }
 
   function withdrawAllToVault() public restricted returns (bytes32) {
-    _liquidateRewards();
-    address _underlying = underlying();
+    _handleFee();
     bytes32 withdrawal = _withdrawAll();
     _updateStoredBalance();
     return withdrawal;
   }
-
-  // function emergencyExit() external onlyGovernance returns(bytes32) {
-  //   _accrueFee();
-  //   bytes32 withdrawal = _withdrawAll();
-  //   _setPausedInvesting(true);
-  //   _updateStoredBalance();
-  //   return withdrawal;
-  // }
-
-  // function continueInvesting() public onlyGovernance {
-  //   _setPausedInvesting(false);
-  // }
 
   function withdrawToVault(uint256 amountUnderlying) public restricted returns(bytes32) {
     _accrueFee();
@@ -219,7 +199,7 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
   }
 
   function doHardWork() public restricted returns(bytes32) {
-    _liquidateRewards();
+    _handleFee();
     bytes32 depositHash = _investAllUnderlying();
     _updateStoredBalance();
     return depositHash;
@@ -228,19 +208,14 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
   /**
   * Salvages a token.
   */
-  function salvage(address recipient, address token, uint256 amount) public onlyGovernance {
+  function salvage(address payable recipient, address token, uint256 amount) public onlyGovernance {
     // To make sure that governance cannot come in and take away the coins
-    require(!unsalvagableTokens(token), "not salvagable");
-    IERC20(token).safeTransfer(recipient, amount);
-  }
-
-  function _liquidateRewards() internal {
-    if (!sell()) {
-      // Profits can be disabled for possible simplified and rapid exit
-      emit ProfitsNotCollected(sell(), false);
-      return;
+    require(!unsalvagableTokens(token));
+    if (token == address(0)) {
+      recipient.transfer(amount);
+    } else {
+      IERC20(token).safeTransfer(recipient, amount);
     }
-    _handleFee();
   }
 
   function _deposit(uint256 amount) internal returns(bytes32) {
@@ -355,7 +330,9 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
     return withdrawalHash;
   }
 
-  function afterDepositExecution(bytes32 key, DepositProps memory deposit, EventUtils.EventLogData memory eventData) override external onlyGmxKeeper nonReentrant {
+  function afterDepositExecution(
+    bytes32 key, DepositProps memory deposit, EventUtils.EventLogData memory
+  ) override external onlyGmxKeeperOrGovernance nonReentrant {
     // console.log("Deposit made:");
     // console.logBytes32(key);
     // console.log("MarketBalance:    ", IERC20(market()).balanceOf(address(this)));
@@ -371,28 +348,31 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
     uint256 correctedAmount = depAmt.mul(received).div(pendingDeposits[key].expectedOut);
     // console.log(depAmt, correctedAmount);
 
-    underlyingInPending -= depAmt;
-    pendingDeposits[key] = PendingDeposit(0, 0, 0, 0);
-
     IVaultGMX.PendingAction memory pending = IVaultGMX(vault()).pendingDeposits(key);
     if (pending.pending) {
       IVaultGMX(vault()).finalizeDeposit(true, key, correctedAmount);
     }
+    underlyingInPending -= depAmt;
+    pendingDeposits[key] = PendingDeposit(0, 0, 0, 0);
     _updateStoredBalance();
   }
 
-  function afterDepositCancellation(bytes32 key, DepositProps memory deposit, EventUtils.EventLogData memory eventData) override external onlyGmxKeeper nonReentrant {
-    underlyingInPending -= deposit.numbers.initialLongTokenAmount;
-    pendingDeposits[key] = PendingDeposit(0, 0, 0, 0);
-
+  function afterDepositCancellation(
+    bytes32 key, DepositProps memory deposit, EventUtils.EventLogData memory
+  ) override external onlyGmxKeeperOrGovernance nonReentrant {
     IVaultGMX.PendingAction memory pending = IVaultGMX(vault()).pendingDeposits(key);
     if (pending.pending) {
+      IERC20(underlying()).safeTransfer(vault(), deposit.numbers.initialLongTokenAmount);
       IVaultGMX(vault()).finalizeDeposit(false, key, 0);
     }
+    underlyingInPending -= deposit.numbers.initialLongTokenAmount;
+    pendingDeposits[key] = PendingDeposit(0, 0, 0, 0);
     _updateStoredBalance();
   }
 
-  function afterWithdrawalExecution(bytes32 key, WithdrawalProps memory withdrawal, EventUtils.EventLogData memory eventData) override external onlyGmxKeeper nonReentrant {
+  function afterWithdrawalExecution(
+    bytes32 key, WithdrawalProps memory withdrawal, EventUtils.EventLogData memory
+  ) override external onlyGmxKeeperOrGovernance nonReentrant {
     // console.log("Withdrawal made:");
     // console.logBytes32(key);
     // console.log("MarketBalance:    ", IERC20(market()).balanceOf(address(this)));
@@ -420,28 +400,32 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
       }      
       _notifyProfitInRewardToken(underlying(), balanceIncrease);
       setUint256(_PENDING_FEE_SLOT, remainingFee);
-    }
 
-    IERC20(underlying()).safeTransfer(vault(), received);
-
-    marketInPending -= withAmt;
-    pendingWithdrawals[key] = PendingWithdrawal(0, 0, 0, 0, false, false);
-    
-    IVaultGMX.PendingAction memory pending = IVaultGMX(vault()).pendingWithdrawals(key);
-    if (pending.pending) {
-      IVaultGMX(vault()).finalizeWithdrawal(true, key, received);
+      marketInPending -= withAmt;
+      pendingWithdrawals[key] = PendingWithdrawal(0, 0, 0, 0, false, false);
+      _updateStoredBalance();
+    } else {
+      IERC20(underlying()).safeTransfer(vault(), received);
+      
+      IVaultGMX.PendingAction memory pending = IVaultGMX(vault()).pendingWithdrawals(key);
+      if (pending.pending) {
+        IVaultGMX(vault()).finalizeWithdrawal(true, key, received);
+      }
+      marketInPending -= withAmt;
+      pendingWithdrawals[key] = PendingWithdrawal(0, 0, 0, 0, false, false);
+      _updateStoredBalance();
     }
-    _updateStoredBalance();
   }
 
-  function afterWithdrawalCancellation(bytes32 key, WithdrawalProps memory withdrawal, EventUtils.EventLogData memory eventData) override external onlyGmxKeeper nonReentrant {
-    marketInPending -= withdrawal.numbers.marketTokenAmount;
-    pendingWithdrawals[key] = PendingWithdrawal(0, 0, 0, 0, false, false);
-
+  function afterWithdrawalCancellation(
+    bytes32 key, WithdrawalProps memory withdrawal, EventUtils.EventLogData memory
+  ) override external onlyGmxKeeperOrGovernance nonReentrant {
     IVaultGMX.PendingAction memory pending = IVaultGMX(vault()).pendingWithdrawals(key);
     if (pending.pending) {
       IVaultGMX(vault()).finalizeWithdrawal(false, key, 0);
     }
+    marketInPending -= withdrawal.numbers.marketTokenAmount;
+    pendingWithdrawals[key] = PendingWithdrawal(0, 0, 0, 0, false, false);
     _updateStoredBalance();
   }
 
@@ -478,7 +462,7 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
     return getAddress(_WITHDRAW_VAULT_SLOT);
   }
 
-  function _setViewer(address _target) public {
+  function _setViewer(address _target) internal {
     setAddress(_VIEWER_SLOT, _target);
   }
 
@@ -491,7 +475,6 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
   }
 
   function finalizeUpgrade() external onlyGovernance {
-    require(underlyingInPending == 0 && marketInPending == 0, "Pending actions");
     _finalizeUpgrade();
   }
 
