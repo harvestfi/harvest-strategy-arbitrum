@@ -1,6 +1,5 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity 0.6.12;
-pragma experimental ABIEncoderV2;
 
 import "./base/ConvexStrategy.sol";
 
@@ -16,7 +15,6 @@ contract ConvexStrategyMainnet_USDe_USDx is ConvexStrategy {
     address rewardPool = address(0xe062e302091f44d7483d9D6e0Da9881a0817E2be); // Info -> Rewards contract address
     address crv = address(0x11cDb42B0EB46D95f990BeDD4695A6e3fA034978);
     address usde = address(0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34);
-    address arb = address(0x912CE59144191C1204E64559FE8253a0e49E6548);
     ConvexStrategy.initializeBaseStrategy(
       _storage,
       underlying,
@@ -29,6 +27,6 @@ contract ConvexStrategyMainnet_USDe_USDx is ConvexStrategy {
       2, //nTokens -> total number of deposit tokens
       true //NG -> new version Curve Pool
     );
-    rewardTokens = [crv, arb];
+    rewardTokens = [crv];
   }
 }
