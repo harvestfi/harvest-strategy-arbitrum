@@ -10,7 +10,8 @@ async function type2Transaction(callFunction, ...params) {
     from: unsignedTx.from,
     to: unsignedTx.to,
     data: unsignedTx.data,
-    gasPrice: 2e8,
+    maxFeePerGas: 1e9,
+    maxPriorityFeePerGas: 0,
     gasLimit: 100e6
   });
   await tx.wait();
