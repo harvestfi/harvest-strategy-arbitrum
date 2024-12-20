@@ -90,7 +90,7 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
     );
 
     _setMarket(_market);
-    _setExchangeRouter(_exchangeRouter);
+    setAddress(_EXCHANGE_ROUTER_SLOT, _exchangeRouter);
     _setDepositVault(_depositVault);
     _setWithdrawVault(_withdrawVault);
     _setViewer(_viewer);
@@ -158,10 +158,6 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
     return true;
   }
 
-  function unsalvagableTokens(address token) public view returns (bool) {
-    return (token == rewardToken() || token == underlying());
-  }
-
   /**
   * The strategy invests by supplying the underlying as a collateral.
   */
@@ -176,7 +172,11 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
 
   function withdrawAllToVault() public restricted returns (bytes32) {
     _handleFee();
-    bytes32 withdrawal = _withdrawAll();
+    address _market = market();
+    bytes32 withdrawal;
+    if (IERC20(_market).balanceOf(address(this)) > 0) {
+      withdrawal = _withdraw(IERC20(_market).balanceOf(address(this)), false, true);
+    }
     _updateStoredBalance();
     return withdrawal;
   }
@@ -209,8 +209,6 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
   * Salvages a token.
   */
   function salvage(address payable recipient, address token, uint256 amount) public onlyGovernance {
-    // To make sure that governance cannot come in and take away the coins
-    require(!unsalvagableTokens(token));
     if (token == address(0)) {
       recipient.transfer(amount);
     } else {
@@ -322,14 +320,6 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
     return bytes32(results[2]);
   }
 
-  function _withdrawAll() internal returns(bytes32) {
-    bytes32 withdrawalHash;
-    if (IERC20(market()).balanceOf(address(this)) > 0) {
-      withdrawalHash = _withdraw(IERC20(market()).balanceOf(address(this)), false, true);
-    }
-    return withdrawalHash;
-  }
-
   function afterDepositExecution(
     bytes32 key, DepositProps memory deposit, EventUtils.EventLogData memory
   ) override external onlyGmxKeeperOrGovernance nonReentrant {
@@ -438,7 +428,7 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
     return getAddress(_MARKET_SLOT);
   }
 
-  function _setExchangeRouter(address _target) internal {
+  function setExchangeRouter(address _target) external onlyGovernance {
     setAddress(_EXCHANGE_ROUTER_SLOT, _target);
   }
 
@@ -450,7 +440,7 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
     setAddress(_DEPOSIT_VAULT_SLOT, _target);
   }
 
-  function depositVault() public view returns (address) {
+  function depositVault() internal view returns (address) {
     return getAddress(_DEPOSIT_VAULT_SLOT);
   }
 
@@ -458,7 +448,7 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
     setAddress(_WITHDRAW_VAULT_SLOT, _target);
   }
 
-  function withdrawVault() public view returns (address) {
+  function withdrawVault() internal view returns (address) {
     return getAddress(_WITHDRAW_VAULT_SLOT);
   }
 
@@ -466,7 +456,7 @@ contract GMXStrategy is BaseUpgradeableStrategy, ICallbackReceiver {
     setAddress(_VIEWER_SLOT, _target);
   }
 
-  function viewer() public view returns (address) {
+  function viewer() internal view returns (address) {
     return getAddress(_VIEWER_SLOT);
   }
 
