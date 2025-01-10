@@ -8,6 +8,7 @@ import "../../base/interface/IUniversalLiquidator.sol";
 import "../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../../base/interface/dolomite/IDolomiteMargin.sol";
 import "../../base/interface/dolomite/IDepositWithdraw.sol";
+import "../../base/interface/dolomite/IRewardsDistributor.sol";
 
 contract DolomiteLendStrategy is BaseUpgradeableStrategy {
 
@@ -262,6 +263,10 @@ contract DolomiteLendStrategy is BaseUpgradeableStrategy {
 
   function finalizeUpgrade() external onlyGovernance {
     _finalizeUpgrade();
+  }
+
+  function claimRewards(IRewardsDistributor.ClaimInfo[] calldata _claimInfo) external {
+    IRewardsDistributor(0x2E3D10CC42227aF0ce908F00C76fFe1dE1728b4B).claim(_claimInfo);
   }
 
   receive() external payable {}
