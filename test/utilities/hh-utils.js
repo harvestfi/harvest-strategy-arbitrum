@@ -213,7 +213,6 @@ async function setupCoreProtocol(config) {
   }
 
   if (config.announceStrategy === true) {
-    await vault.withdrawAll({from: config.governance});
     // Announce switch, time pass, switch to strategy
     await vault.announceStrategyUpdate(strategy.address, { from: config.governance });
     console.log("Strategy switch announced. Waiting...");
