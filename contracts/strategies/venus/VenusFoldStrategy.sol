@@ -126,14 +126,12 @@ contract VenusFoldStrategy is BaseUpgradeableStrategy {
     _accrueFee();
     uint256 fee = pendingFee();
     if (fee > 100) {
-      uint256 balanceIncrease = fee.mul(feeDenominator()).div(totalFeeNumerator());
       _redeem(fee);
       address _underlying = underlying();
-      if (IERC20(_underlying).balanceOf(address(this)) < fee) {
-        balanceIncrease = IERC20(_underlying).balanceOf(address(this)).mul(feeDenominator()).div(totalFeeNumerator());
-      }
+      fee = Math.min(fee, IERC20(_underlying).balanceOf(address(this)));
+      uint256 balanceIncrease = fee.mul(feeDenominator()).div(totalFeeNumerator());
       _notifyProfitInRewardToken(_underlying, balanceIncrease);
-      setUint256(_PENDING_FEE_SLOT, 0);
+      setUint256(_PENDING_FEE_SLOT, pendingFee().sub(fee));
     }
   }
   
@@ -353,7 +351,7 @@ contract VenusFoldStrategy is BaseUpgradeableStrategy {
     uint256 supplied = CTokenInterface(_cToken).balanceOfUnderlying(address(this));
     // amount we borrowed
     uint256 borrowed = CTokenInterface(_cToken).borrowBalanceCurrent(address(this));
-    uint256 balance = supplied.sub(borrowed).sub(pendingFee().add(1));
+    uint256 balance = supplied.sub(borrowed).sub(pendingFee());
 
     _redeemWithFlashloan(Math.min(balance, available), 0);
     available = CTokenInterface(_cToken).getCash();
