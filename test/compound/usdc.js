@@ -7,13 +7,14 @@ const {
 } = require("../utilities/hh-utils.js");
 
 const addresses = require("../test-config.js");
+const { send } = require("@openzeppelin/test-helpers");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
 const Strategy = artifacts.require("CompoundStrategyMainnet_USDC");
 
-// Developed and tested at blockNumber 277107050
+// Developed and tested at blockNumber 126724150
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
 describe("Arbitrum Mainnet Compound USDC", function() {
@@ -23,7 +24,7 @@ describe("Arbitrum Mainnet Compound USDC", function() {
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x69CFAFcA9c889D6Efc1ACc5651ce7A5ec6CdC231";
+  let underlyingWhale = "0x66364BEF617514B745339d67f981b0F3de0463F2";
   let comp = "0x354A6dA3fcde098F8389cad84b0182725c6C91dE";
   let weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
 
@@ -40,7 +41,7 @@ describe("Arbitrum Mainnet Compound USDC", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xaf88d065e77c8cC2239327C5EDb3A432268e5831");
+    underlying = await IERC20.at("0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -71,7 +72,7 @@ describe("Arbitrum Mainnet Compound USDC", function() {
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
       "governance": governance,
-      // "liquidation": [{"uniV3": [comp, weth]}]
+      "liquidation": [{"uniV3": [comp, weth]}]
     });
 
     // whale send underlying to farmers
@@ -99,8 +100,8 @@ describe("Arbitrum Mainnet Compound USDC", function() {
         console.log("new shareprice: ", newSharePrice.toFixed());
         console.log("growth: ", newSharePrice.toFixed() / oldSharePrice.toFixed());
 
-        apr = (newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/300))*365;
-        apy = ((newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/300))+1)**365;
+        apr = (newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/1800))*365;
+        apy = ((newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/1800))+1)**365;
 
         console.log("instant APR:", apr*100, "%");
         console.log("instant APY:", (apy-1)*100, "%");
@@ -111,8 +112,8 @@ describe("Arbitrum Mainnet Compound USDC", function() {
       let farmerNewBalance = new BigNumber(await underlying.balanceOf(farmer1));
       Utils.assertBNGt(farmerNewBalance, farmerOldBalance);
 
-      apr = (farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/300))*365;
-      apy = ((farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/300))+1)**365;
+      apr = (farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/1800))*365;
+      apy = ((farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/1800))+1)**365;
 
       console.log("earned!");
       console.log("APR:", apr*100, "%");
