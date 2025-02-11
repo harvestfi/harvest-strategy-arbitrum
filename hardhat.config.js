@@ -22,7 +22,7 @@ module.exports = {
       },
       forking: {
         url: `https://arb-mainnet.g.alchemy.com/v2/${secret.alchemyKey}`,
-        blockNumber: 286693815, // <-- edit here
+        blockNumber: 300500460, // <-- edit here
       },
     },
     mainnet: {
