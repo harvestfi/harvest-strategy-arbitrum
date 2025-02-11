@@ -1,5 +1,6 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
 
 import "./base/ConvexStrategy.sol";
 
@@ -14,6 +15,7 @@ contract ConvexStrategyMainnet_ETHp_WETH is ConvexStrategy {
     address underlying = address(0x1Fb84Fa6D252762e8367eA607A6586E09dceBe3D); // Info -> LP Token address
     address rewardPool = address(0x55cDf25202DFe4C59515dE3FdD7b46A306CE827c); // Info -> Rewards contract address
     address crv = address(0x11cDb42B0EB46D95f990BeDD4695A6e3fA034978);
+    address arb = address(0x912CE59144191C1204E64559FE8253a0e49E6548);
     ConvexStrategy.initializeBaseStrategy(
       _storage,
       underlying,
@@ -26,6 +28,6 @@ contract ConvexStrategyMainnet_ETHp_WETH is ConvexStrategy {
       2, //nTokens -> total number of deposit tokens
       false //NG -> new version Curve Pool
     );
-    rewardTokens = [crv];
+    rewardTokens = [crv, arb];
   }
 }
