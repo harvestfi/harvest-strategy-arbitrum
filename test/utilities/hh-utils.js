@@ -3,6 +3,7 @@ const addresses = require("../test-config.js");
 const IController = artifacts.require("IController");
 const IRewardForwarder = artifacts.require("IRewardForwarder");
 const Vault = artifacts.require("VaultV2");
+const GMXVault = artifacts.require("VaultV2GMX");
 const IUpgradeableStrategy = artifacts.require("IUpgradeableStrategy");
 const ILiquidatorRegistry = artifacts.require("IUniversalLiquidatorRegistry");
 const IDex = artifacts.require("IDex");
@@ -30,8 +31,16 @@ async function setupCoreProtocol(config) {
     vault = await Vault.at(config.existingVaultAddress);
     console.log("Fetching Vault at: ", vault.address);
   } else {
-    const implAddress = config.vaultImplementationOverride || addresses.VaultImplementationV2;
-    vault = await makeVault(implAddress, addresses.Storage, config.underlying.address, 100, 100, {
+    let implAddress, useGMX
+    if (config.useGMXVault) {
+      vaultImpl = await GMXVault.new();
+      implAddress = vaultImpl.address;
+      useGMX = true;
+    } else {
+      implAddress = config.vaultImplementationOverride || addresses.VaultImplementationV2;
+      useGMX = false;
+    }
+    vault = await makeVault(implAddress, useGMX, addresses.Storage, config.underlying.address, 100, 100, {
       from: config.governance,
     });
     console.log("New Vault Deployed: ", vault.address);
@@ -204,7 +213,6 @@ async function setupCoreProtocol(config) {
   }
 
   if (config.announceStrategy === true) {
-    await vault.withdrawAll({from: config.governance});
     // Announce switch, time pass, switch to strategy
     await vault.announceStrategyUpdate(strategy.address, { from: config.governance });
     console.log("Strategy switch announced. Waiting...");

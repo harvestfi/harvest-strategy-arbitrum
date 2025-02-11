@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
 import "./NotifyHelperStateful.sol";
 import "./NotifyHelperGeneric.sol";
 import "../inheritance/Controllable.sol";
 
-import "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
@@ -52,7 +52,7 @@ contract GlobalIncentivesHelper is Controllable {
     address _notifyHelperGeneric,
     address _escrow,
     address _reserve
-    ) public Controllable(_storage) {
+    ) Controllable(_storage) {
     tokenToHelper[_farm] = _farmHelper;
     farm = _farm;
     notifyHelperGeneric = _notifyHelperGeneric;
@@ -135,7 +135,7 @@ contract GlobalIncentivesHelper is Controllable {
   /// emergency draining of tokens and ETH as there should be none staying here
   function emergencyDrain(address token, uint256 amount) public onlyGovernance {
     if (token == address(0)) {
-      msg.sender.transfer(amount);
+      payable(msg.sender).transfer(amount);
     } else {
       IERC20Upgradeable(token).safeTransfer(msg.sender, amount);
     }

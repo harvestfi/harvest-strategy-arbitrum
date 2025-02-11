@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Unlicense
 
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
 interface ILinearPoolRebalancer {
     function rebalance(address recipient) external;

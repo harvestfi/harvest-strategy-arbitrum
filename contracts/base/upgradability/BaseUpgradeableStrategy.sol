@@ -1,14 +1,15 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
-import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "./BaseUpgradeableStrategyStorage.sol";
 import "../inheritance/ControllableInit.sol";
 import "../interface/IController.sol";
 import "../interface/IRewardForwarder.sol";
+import "../interface/merkl/IDistributor.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract BaseUpgradeableStrategy is Initializable, ControllableInit, BaseUpgradeableStrategyStorage {
   using SafeMath for uint256;
@@ -31,7 +32,7 @@ contract BaseUpgradeableStrategy is Initializable, ControllableInit, BaseUpgrade
     _;
   }
 
-  constructor() public BaseUpgradeableStrategyStorage() {
+  constructor() BaseUpgradeableStrategyStorage() {
   }
 
   function initialize(
@@ -75,6 +76,10 @@ contract BaseUpgradeableStrategy is Initializable, ControllableInit, BaseUpgrade
         && nextImplementation() != address(0),
       nextImplementation()
     );
+  }
+
+  function toggleMerklOperator(address merklClaim, address operator) external onlyGovernance {
+    IDistributor(merklClaim).toggleOperator(address(this), operator);
   }
 
   // ========================= Internal & Private Functions =========================

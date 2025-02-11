@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
-import "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "../inheritance/Controllable.sol";
@@ -86,7 +86,7 @@ contract NotifyHelperStateful is Controllable {
     address _notifyHelperAmpliFARM,
     address _escrow,
     address _reserve)
-  Controllable(_storage) public {
+  Controllable(_storage) {
     // used for getting a reference to FeeRewardForwarder
     notifyHelperRegular = _notifyHelperRegular;
     rewardToken = _rewardToken;
@@ -99,7 +99,7 @@ contract NotifyHelperStateful is Controllable {
 
   /// Whitelisted entities can notify pools based on the state, both for FARM and iFARM
   /// The only whitelisted entity here would be the minter helper
-  function notifyPools(uint256 total, uint256 timestamp) public onlyNotifier {
+  function notifyPools(uint256 total, uint256 /*timestamp*/) public onlyNotifier {
     // transfer the tokens from the msg.sender to here
     IERC20Upgradeable(rewardToken).safeTransferFrom(msg.sender, address(this), total);
 
@@ -257,7 +257,7 @@ contract NotifyHelperStateful is Controllable {
   function addNotification(address poolAddress, uint256 percentage, NotificationType notificationType, bool vesting) internal {
     require(!notificationExists(poolAddress), "notification exists");
     require(percentage > 0, "notification is 0");
-    require(PotPool(poolAddress).getRewardTokenIndex(rewardToken) != uint256(-1), "Token not configured on pot pool");
+    require(PotPool(poolAddress).getRewardTokenIndex(rewardToken) != uint256(type(uint256).max), "Token not configured on pot pool");
     Notification memory notification = Notification(poolAddress, notificationType, percentage, vesting);
     notifications.push(notification);
     totalPercentage = totalPercentage.add(notification.percentage);
@@ -269,7 +269,7 @@ contract NotifyHelperStateful is Controllable {
   /// emergency draining of tokens and ETH as there should be none staying here
   function emergencyDrain(address token, uint256 amount) public onlyGovernance {
     if (token == address(0)) {
-      msg.sender.transfer(amount);
+      payable(msg.sender).transfer(amount);
     } else {
       IERC20Upgradeable(token).safeTransfer(msg.sender, amount);
     }

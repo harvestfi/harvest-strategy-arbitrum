@@ -11,7 +11,7 @@ async function type2Transaction(callFunction, ...params) {
     to: unsignedTx.to,
     data: unsignedTx.data,
     gasPrice: 2e8,
-    gasLimit: 100e6
+    gasLimit: 30e6
   });
   await tx.wait();
   return tx;

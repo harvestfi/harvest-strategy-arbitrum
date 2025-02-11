@@ -1,18 +1,18 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
-pragma experimental ABIEncoderV2;
+pragma solidity 0.8.26;
 
-import "@openzeppelin/contracts/math/Math.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "../../base/interface/IUniversalLiquidator.sol";
-import "../../base/interface/IVault.sol";
 import "../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../../base/interface/balancer/IBVault.sol";
-import "../../base/interface/balancer/Gauge.sol";
-import "../../base/interface/balancer/IBalancerMinter.sol";
-import "./interface/IAuraBooster.sol";
-import "./interface/IAuraBaseRewardPool.sol";
+import "../../base/interface/balancer/IGyroPool.sol";
+import "../../base/interface/aura/IAuraBooster.sol";
+import "../../base/interface/aura/IAuraBaseRewardPool.sol";
+
+import "hardhat/console.sol";
 
 contract AuraStrategy is BaseUpgradeableStrategy {
 
@@ -28,14 +28,16 @@ contract AuraStrategy is BaseUpgradeableStrategy {
   bytes32 internal constant _AURA_POOLID_SLOT = 0xbc10a276e435b4e9a9e92986f93a224a34b50c1898d7551c38ef30a08efadec4;
   bytes32 internal constant _BALANCER_POOLID_SLOT = 0xbf3f653715dd45c84a3367d2975f271307cb967d6ce603dc4f0def2ad909ca64;
   bytes32 internal constant _DEPOSIT_TOKEN_SLOT = 0x219270253dbc530471c88a9e7c321b36afda219583431e7b6c386d2d46e70c86;
+  bytes32 internal constant _GYRO_POOL_SLOT = 0xf0b0faebb2d15ab4125ed190c9e3f2c678e7706246396073a319fa77463a0455;
 
   // this would be reset on each upgrade
   address[] public rewardTokens;
 
-  constructor() public BaseUpgradeableStrategy() {
+  constructor() BaseUpgradeableStrategy() {
     assert(_AURA_POOLID_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.auraPoolId")) - 1));
     assert(_BALANCER_POOLID_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.balancerPoolId")) - 1));
     assert(_DEPOSIT_TOKEN_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.depositToken")) - 1));
+    assert(_GYRO_POOL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.gyroPool")) - 1));
   }
 
   function initializeBaseStrategy(
@@ -45,7 +47,8 @@ contract AuraStrategy is BaseUpgradeableStrategy {
     address _rewardPool,
     bytes32 _balancerPoolID,
     uint256 _auraPoolID,
-    address _depositToken
+    address _depositToken,
+    bool _gyroPool
   ) public initializer {
 
     BaseUpgradeableStrategy.initialize(
@@ -65,6 +68,7 @@ contract AuraStrategy is BaseUpgradeableStrategy {
     _setAuraPoolId(_auraPoolID);
     _setBalancerPoolId(_balancerPoolID);
     _setDepositToken(_depositToken);
+    _setGyroPool(_gyroPool);
   }
 
   function depositArbCheck() public pure returns(bool) {
@@ -148,21 +152,36 @@ contract AuraStrategy is BaseUpgradeableStrategy {
     address tokenIn,
     bytes32 poolId,
     uint256 amountIn,
-    uint256 minAmountOut
+    uint256 minAmountOut,
+    bool gyroPool
   ) internal {
-    (address[] memory poolTokens,,) = IBVault(bVault).getPoolTokens(poolId);
+    (address[] memory poolTokens, uint256[] memory poolBalances,) = IBVault(bVault).getPoolTokens(poolId);
     uint256 _nTokens = poolTokens.length;
 
     IAsset[] memory assets = new IAsset[](_nTokens);
     uint256[] memory amountsIn = new uint256[](_nTokens);
-    for (uint256 i = 0; i < _nTokens; i++) {
-      assets[i] = IAsset(poolTokens[i]);
-      amountsIn[i] = poolTokens[i] == tokenIn ? amountIn : 0;
+    bytes memory userData;
+    if (gyroPool) {
+      (uint256 amount0, uint256 amount1, uint256 exactAmountOut) = _getGyroAmounts(tokenIn, amountIn, poolTokens, poolBalances);
+      for (uint256 i = 0; i < _nTokens; i++) {
+        assets[i] = IAsset(poolTokens[i]);
+      }
+      amountsIn[0] = amount0;
+      amountsIn[1] = amount1;
+      IBVault.JoinKind joinKind = IBVault.JoinKind.ALL_TOKENS_IN_FOR_EXACT_BPT_OUT;
+
+      userData = abi.encode(joinKind, exactAmountOut);
+      _approveIfNeed(poolTokens[0], bVault, amount0);
+      _approveIfNeed(poolTokens[1], bVault, amount1);
+    } else {
+      for (uint256 i = 0; i < _nTokens; i++) {
+        assets[i] = IAsset(poolTokens[i]);
+        amountsIn[i] = poolTokens[i] == tokenIn ? amountIn : 0;
+      }
+      IBVault.JoinKind joinKind = IBVault.JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT;
+      userData = abi.encode(joinKind, amountsIn, minAmountOut);
+      _approveIfNeed(tokenIn, bVault, amountIn);
     }
-
-    IBVault.JoinKind joinKind = IBVault.JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT;
-
-    bytes memory userData = abi.encode(joinKind, amountsIn, minAmountOut);
 
     IBVault.JoinPoolRequest memory request;
     request.assets = assets;
@@ -170,13 +189,55 @@ contract AuraStrategy is BaseUpgradeableStrategy {
     request.userData = userData;
     request.fromInternalBalance = false;
 
-    _approveIfNeed(tokenIn, bVault, amountIn);
     IBVault(bVault).joinPool(
       poolId,
       address(this),
       address(this),
       request
     );
+  }
+
+  function _getGyroAmounts(
+    address tokenIn,
+    uint256 amountIn,
+    address[] memory poolTokens,
+    uint256[] memory poolBalances
+  ) internal returns(uint256 amount0, uint256 amount1, uint256 amountOut) {
+    address _universalLiquidator = universalLiquidator();
+    address _underlying = underlying();
+
+    uint256 token0Weight;
+    uint256 token1Weight;
+    {
+      uint256 token0Decimals = ERC20(poolTokens[0]).decimals();
+      uint256 token1Decimals = ERC20(poolTokens[1]).decimals();
+      uint256 normalisedBalance0 = poolBalances[0].mul(1e18).div(10**token0Decimals);
+      uint256 normalisedBalance1 = poolBalances[1].mul(1e18).div(10**token1Decimals);
+      uint256 totalPoolBalanceIn1 = normalisedBalance0.mul(IGyroPool(_underlying).getPrice()).div(1e18).add(normalisedBalance1);
+      token0Weight = normalisedBalance0.mul(IGyroPool(_underlying).getPrice()).div(totalPoolBalanceIn1);
+      token1Weight = normalisedBalance1.mul(1e18).div(totalPoolBalanceIn1);
+    }
+
+    if (tokenIn == poolTokens[0]) {
+      uint256 swapAmount = amountIn.mul(token1Weight).div(1e18);
+      IERC20(tokenIn).safeApprove(_universalLiquidator, 0);
+      IERC20(tokenIn).safeApprove(_universalLiquidator, swapAmount);
+      IUniversalLiquidator(_universalLiquidator).swap(tokenIn, poolTokens[1], swapAmount, 1, address(this));
+    } else {
+      uint256 swapAmount = amountIn.mul(token0Weight).div(1e18);
+      IERC20(tokenIn).safeApprove(_universalLiquidator, 0);
+      IERC20(tokenIn).safeApprove(_universalLiquidator, swapAmount);
+      IUniversalLiquidator(_universalLiquidator).swap(tokenIn, poolTokens[0], swapAmount, 1, address(this));
+    }
+
+    (,poolBalances,) = IBVault(bVault).getPoolTokens(balancerPoolId());
+
+    uint256 balance0 = IERC20(poolTokens[0]).balanceOf(address(this));
+    uint256 balance1 = IERC20(poolTokens[1]).balanceOf(address(this));
+    uint256 amountOut0 = balance0.mul(IGyroPool(_underlying).getActualSupply()).div(poolBalances[0]);
+    uint256 amountOut1 = balance1.mul(IGyroPool(_underlying).getActualSupply()).div(poolBalances[1]);
+
+    return(balance0, balance1, Math.min(amountOut0, amountOut1).mul(9999).div(10000));
   }
 
   function _liquidateReward() internal {
@@ -194,9 +255,9 @@ contract AuraStrategy is BaseUpgradeableStrategy {
         continue;
       }
       if (token != _rewardToken){
-          IERC20(token).safeApprove(_universalLiquidator, 0);
-          IERC20(token).safeApprove(_universalLiquidator, rewardBalance);
-          IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, rewardBalance, 1, address(this));
+        IERC20(token).safeApprove(_universalLiquidator, 0);
+        IERC20(token).safeApprove(_universalLiquidator, rewardBalance);
+        IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, rewardBalance, 1, address(this));
       }
     }
 
@@ -217,20 +278,14 @@ contract AuraStrategy is BaseUpgradeableStrategy {
 
     uint256 tokenBalance = IERC20(_depositToken).balanceOf(address(this));
     if (tokenBalance > 0 && !(_depositToken == underlying())) {
-      depositLP();
+      _balancerDeposit(
+        _depositToken,
+        balancerPoolId(),
+        tokenBalance,
+        1,
+        gyroPool()
+      );
     }
-  }
-
-  function depositLP() internal {
-    address _depositToken = depositToken();
-    uint256 depositTokenBalance = IERC20(_depositToken).balanceOf(address(this));
-
-    _balancerDeposit(
-      _depositToken,
-      balancerPoolId(),
-      depositTokenBalance,
-      1
-    );
   }
 
   /** Withdraws all the asset to the vault
@@ -330,6 +385,14 @@ contract AuraStrategy is BaseUpgradeableStrategy {
 
   function depositToken() public view returns (address) {
     return getAddress(_DEPOSIT_TOKEN_SLOT);
+  }
+
+  function _setGyroPool(bool _value) internal {
+    setBoolean(_GYRO_POOL_SLOT, _value);
+  }
+
+  function gyroPool() public view returns (bool) {
+    return getBoolean(_GYRO_POOL_SLOT);
   }
 
   function finalizeUpgrade() external onlyGovernance {

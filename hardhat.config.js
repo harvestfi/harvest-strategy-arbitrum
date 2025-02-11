@@ -16,14 +16,13 @@ module.exports = {
   defaultNetwork: "hardhat",
   networks: {
     hardhat: {
+      allowUnlimitedContractSize: true,
       accounts: {
         mnemonic: secret.mnemonic,
       },
-      chainId: 42161,
-      blockGasLimit: 100e6,
       forking: {
         url: `https://arb-mainnet.g.alchemy.com/v2/${secret.alchemyKey}`,
-        blockNumber: 185225290, // <-- edit here
+        blockNumber: 286693815, // <-- edit here
       },
     },
     mainnet: {
@@ -36,7 +35,7 @@ module.exports = {
   solidity: {
     compilers: [
       {
-        version: "0.6.12",
+        version: "0.8.26",
         settings: {
           optimizer: {
             enabled: true,
@@ -55,7 +54,7 @@ module.exports = {
   contractSizer: {
     alphaSort: false,
     disambiguatePaths: false,
-    runOnCompile: true,
+    runOnCompile: false,
     strict: false,
   },
 };
