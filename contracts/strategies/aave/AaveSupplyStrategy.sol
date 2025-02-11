@@ -19,12 +19,10 @@ contract AaveSupplyStrategy is BaseUpgradeableStrategy {
   // additional storage slots (on top of BaseUpgradeableStrategy ones) are defined here
   bytes32 internal constant _ATOKEN_SLOT = 0x8cdee58637b787efaa2d78bb1da1e053a2c91e61640b32339bfbba65c00abd68;
   bytes32 internal constant _STORED_SUPPLIED_SLOT = 0x280539da846b4989609abdccfea039bd1453e4f710c670b29b9eeaca0730c1a2;
-  bytes32 internal constant _PENDING_FEE_SLOT = 0x0af7af9f5ccfa82c3497f40c7c382677637aee27293a6243a22216b51481bd97;
 
   constructor() public BaseUpgradeableStrategy() {
     assert(_ATOKEN_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.aToken")) - 1));
     assert(_STORED_SUPPLIED_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.storedSupplied")) - 1));
-    assert(_PENDING_FEE_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.pendingFee")) - 1));
   }
 
   function initializeBaseStrategy(
@@ -59,37 +57,10 @@ contract AaveSupplyStrategy is BaseUpgradeableStrategy {
     setUint256(_STORED_SUPPLIED_SLOT, currentSupplied());
   }
 
-  function totalFeeNumerator() public view returns (uint256) {
-    return strategistFeeNumerator().add(platformFeeNumerator()).add(profitSharingNumerator());
-  }
-
   function pendingFee() public view returns (uint256) {
-    return getUint256(_PENDING_FEE_SLOT);
-  }
-
-  function _accrueFee() internal {
-    uint256 fee;
-    if (currentSupplied() > storedSupplied()) {
-      uint256 balanceIncrease = currentSupplied().sub(storedSupplied());
-      fee = balanceIncrease.mul(totalFeeNumerator()).div(feeDenominator());
-    }
-    setUint256(_PENDING_FEE_SLOT, pendingFee().add(fee));
-    _updateStoredSupplied();
-  }
-
-  function _handleFee() internal {
-    _accrueFee();
-    uint256 fee = pendingFee();
-    if (fee > 100) {
-      uint256 balanceIncrease = fee.mul(feeDenominator()).div(totalFeeNumerator());
-      _redeem(fee);
-      address _underlying = underlying();
-      if (IERC20(_underlying).balanceOf(address(this)) < fee) {
-        balanceIncrease = IERC20(_underlying).balanceOf(address(this)).mul(feeDenominator()).div(totalFeeNumerator());
-      }
-      _notifyProfitInRewardToken(_underlying, balanceIncrease);
-      setUint256(_PENDING_FEE_SLOT, 0);
-    }
+    uint256 balanceIncrease = currentSupplied().sub(storedSupplied());
+    uint256 fee = balanceIncrease.mul(strategistFeeNumerator().add(platformFeeNumerator()).add(profitSharingNumerator())).div(feeDenominator());
+    return fee;
   }
   
   function depositArbCheck() public pure returns (bool) {
@@ -115,14 +86,14 @@ contract AaveSupplyStrategy is BaseUpgradeableStrategy {
   }
 
   function emergencyExit() external onlyGovernance {
-    _accrueFee();
+    _handleFee();
     _redeemMaximum();
     _updateStoredSupplied();
   }
 
   function withdrawToVault(uint256 amountUnderlying) public restricted {
-    _accrueFee();
     address _underlying = underlying();
+    _handleFee();
     uint256 balance = IERC20(_underlying).balanceOf(address(this));
     if (amountUnderlying <= balance) {
       IERC20(_underlying).safeTransfer(vault(), amountUnderlying);
@@ -145,8 +116,6 @@ contract AaveSupplyStrategy is BaseUpgradeableStrategy {
   */
   function doHardWork() public restricted {
     _handleFee();
-    _supply(IERC20(underlying()).balanceOf(address(this)));
-    _updateStoredSupplied();
   }
 
   /**
@@ -158,13 +127,25 @@ contract AaveSupplyStrategy is BaseUpgradeableStrategy {
     IERC20(token).safeTransfer(recipient, amount);
   }
 
+  function _handleFee() internal {
+    uint256 balanceIncrease = currentSupplied().sub(storedSupplied());
+    _redeem(pendingFee());
+    address _underlying = underlying();
+    _notifyProfitInRewardToken(_underlying, balanceIncrease);
+    uint256 balance = IERC20(_underlying).balanceOf(address(this));
+    if (balance > 0) {
+      _supply(balance);
+    }
+    _updateStoredSupplied();
+  }
+
   /**
   * Returns the current balance.
   */
   function investedUnderlyingBalance() public view returns (uint256) {
     // underlying in this strategy + underlying redeemable from Radiant - debt
     return IERC20(underlying()).balanceOf(address(this))
-    .add(storedSupplied())
+    .add(currentSupplied())
     .sub(pendingFee());
   }
 
@@ -179,7 +160,7 @@ contract AaveSupplyStrategy is BaseUpgradeableStrategy {
     address _pool = IAToken(aToken()).POOL();
     IERC20(_underlying).safeApprove(_pool, 0);
     IERC20(_underlying).safeApprove(_pool, amount);
-    IPool(_pool).supply(_underlying, amount, address(this), 0);
+     IPool(_pool).supply(_underlying, amount, address(this), 0);
   }
 
   function _redeem(uint256 amountUnderlying) internal {
@@ -187,12 +168,12 @@ contract AaveSupplyStrategy is BaseUpgradeableStrategy {
       return;
     }
     address _pool = IAToken(aToken()).POOL();
-    IPool(_pool).withdraw(underlying(), amountUnderlying, address(this));
+     IPool(_pool).withdraw(underlying(), amountUnderlying, address(this));
   }
 
   function _redeemMaximum() internal {
     if (currentSupplied() > 0) {
-      _redeem(currentSupplied().sub(pendingFee().add(1)));
+      _redeem(type(uint).max);
     }
   }
 
