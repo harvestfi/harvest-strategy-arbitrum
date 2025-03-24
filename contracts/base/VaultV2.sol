@@ -25,7 +25,7 @@ contract VaultV2 is IERC4626, VaultV1 {
         return totalAssets() * balanceOf(_depositor) / totalSupply();
     }
 
-    function maxDeposit(address /*caller*/) public view override returns (uint256) {
+    function maxDeposit(address /*caller*/) public pure override returns (uint256) {
         return type(uint256).max;
     }
 
@@ -38,7 +38,7 @@ contract VaultV2 is IERC4626, VaultV1 {
         return shares;
     }
 
-    function maxMint(address /*caller*/) public view override returns (uint256) {
+    function maxMint(address /*caller*/) public pure override returns (uint256) {
         return type(uint256).max;
     }
 

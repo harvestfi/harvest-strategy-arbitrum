@@ -92,6 +92,22 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
     return IController(controller()).nextImplementationDelay();
   }
 
+  function setInvestOnDeposit(bool value) external onlyGovernance {
+    _setInvestOnDeposit(value);
+  }
+
+  function investOnDeposit() public view returns (bool) {
+    return _investOnDeposit();
+  }
+
+  function setCompoundOnWithdraw(bool value) external onlyGovernance {
+    _setCompoundOnWithdraw(value);
+  }
+
+  function compoundOnWithdraw() public view returns (bool) {
+    return _compoundOnWithdraw();
+  }
+
   modifier whenStrategyDefined() {
     require(address(strategy()) != address(0), "Strategy must be defined");
     _;
@@ -271,18 +287,18 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
     require(amount > 0, "Cannot deposit 0");
     require(beneficiary != address(0), "holder must be defined");
 
-    if (address(strategy()) != address(0)) {
-      require(IStrategy(strategy()).depositArbCheck(), "Too much arb");
+    IERC20Upgradeable(underlying()).safeTransferFrom(sender, address(this), amount);
+    
+    if (investOnDeposit()) {
+      invest();
+      IStrategy(strategy()).doHardWork();
     }
 
     uint256 toMint = totalSupply() == 0
         ? amount
-        : amount.mul(totalSupply()).div(underlyingBalanceWithInvestment());
+        : amount.mul(totalSupply()).div(underlyingBalanceWithInvestment().sub(amount));
     _mint(beneficiary, toMint);
 
-    IERC20Upgradeable(underlying()).safeTransferFrom(sender, address(this), amount);
-
-    // update the contribution amount for the beneficiary
     emit IERC4626.Deposit(sender, beneficiary, amount, toMint);
     return toMint;
   }
@@ -293,35 +309,35 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
     uint256 totalSupply = totalSupply();
 
     address sender = msg.sender;
-      if (sender != owner) {
-        uint256 currentAllowance = allowance(owner, sender);
-        if (currentAllowance != type(uint256).max) {
-          require(currentAllowance >= numberOfShares, "ERC20: transfer amount exceeds allowance");
-          _approve(owner, sender, currentAllowance - numberOfShares);
-        }
+    if (sender != owner) {
+      uint256 currentAllowance = allowance(owner, sender);
+      if (currentAllowance != type(uint256).max) {
+        require(currentAllowance >= numberOfShares, "ERC20: transfer amount exceeds allowance");
+        _approve(owner, sender, currentAllowance - numberOfShares);
       }
+    }
     _burn(owner, numberOfShares);
+
+    if (compoundOnWithdraw()) {
+      IStrategy(strategy()).doHardWork();
+    }
 
     uint256 underlyingAmountToWithdraw = underlyingBalanceWithInvestment()
         .mul(numberOfShares)
         .div(totalSupply);
     if (underlyingAmountToWithdraw > underlyingBalanceInVault()) {
-      // withdraw everything from the strategy to accurately check the share value
       if (numberOfShares == totalSupply) {
         IStrategy(strategy()).withdrawAllToVault();
       } else {
         uint256 missing = underlyingAmountToWithdraw.sub(underlyingBalanceInVault());
         IStrategy(strategy()).withdrawToVault(missing);
       }
-      // recalculate to improve accuracy
       underlyingAmountToWithdraw = MathUpgradeable.min(underlyingBalanceWithInvestment()
           .mul(numberOfShares)
           .div(totalSupply), underlyingBalanceInVault());
     }
 
     IERC20Upgradeable(underlying()).safeTransfer(receiver, underlyingAmountToWithdraw);
-
-    // update the withdrawal amount for the holder
     emit IERC4626.Withdraw(sender, receiver, owner, underlyingAmountToWithdraw, numberOfShares);
     return underlyingAmountToWithdraw;
   }
@@ -344,7 +360,12 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
   }
 
   function finalizeUpgrade() external override onlyGovernance {
+    _setDecimals(ERC20Upgradeable(underlying()).decimals());
+    _setInvestOnDeposit(true);
+    _setCompoundOnWithdraw(true);
     _setNextImplementation(address(0));
     _setNextImplementationTimestamp(0);
   }
+
+  uint256[50] private ______gap;
 }
