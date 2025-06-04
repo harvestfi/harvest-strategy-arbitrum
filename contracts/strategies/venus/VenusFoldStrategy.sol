@@ -401,22 +401,20 @@ contract VenusFoldStrategy is BaseUpgradeableStrategy {
       borrowTarget = Math.min(borrowTarget, borrowed.add(borrowAvail));
     }
     uint256 borrowDiff = borrowTarget.sub(borrowed);
-    if (borrowDiff > 0) {
-      address _underlying = underlying();
-      uint256 balancerBalance = IERC20(_underlying).balanceOf(bVault);
+    address _underlying = underlying();
+    uint256 balancerBalance = IERC20(_underlying).balanceOf(bVault);
 
-      if (borrowDiff > balancerBalance) {
-        _depositNoFlash(borrowTarget);
-      } else {
-        address[] memory tokens = new address[](1);
-        uint256[] memory amounts = new uint256[](1);
-        bytes memory userData = abi.encode(0);
-        tokens[0] = underlying();
-        amounts[0] = borrowDiff;
-        makingFlashDeposit = true;
-        IBVault(bVault).flashLoan(address(this), tokens, amounts, userData);
-        makingFlashDeposit = false;
-      }
+    if (borrowDiff > balancerBalance) {
+      _depositNoFlash(borrowTarget);
+    } else {
+      address[] memory tokens = new address[](1);
+      uint256[] memory amounts = new uint256[](1);
+      bytes memory userData = abi.encode(0);
+      tokens[0] = underlying();
+      amounts[0] = borrowDiff;
+      makingFlashDeposit = true;
+      IBVault(bVault).flashLoan(address(this), tokens, amounts, userData);
+      makingFlashDeposit = false;
     }
   }
 
@@ -439,23 +437,21 @@ contract VenusFoldStrategy is BaseUpgradeableStrategy {
       borrowDiff = borrowed.sub(newBorrowTarget);
     }
 
-    if (borrowDiff > 0) {
-      address _underlying = underlying();
-      uint256 balancerBalance = IERC20(_underlying).balanceOf(bVault);
+    address _underlying = underlying();
+    uint256 balancerBalance = IERC20(_underlying).balanceOf(bVault);
 
-      if (borrowDiff > balancerBalance) {
-        _redeemNoFlash(amount, newBorrowTarget);
-      } else {
-        address[] memory tokens = new address[](1);
-        uint256[] memory amounts = new uint256[](1);
-        bytes memory userData = abi.encode(0);
-        tokens[0] = _underlying;
-        amounts[0] = borrowDiff;
-        makingFlashWithdrawal = true;
-        IBVault(bVault).flashLoan(address(this), tokens, amounts, userData);
-        makingFlashWithdrawal = false;
-        _redeem(amount);
-      }
+    if (borrowDiff > balancerBalance) {
+      _redeemNoFlash(amount, newBorrowTarget);
+    } else {
+      address[] memory tokens = new address[](1);
+      uint256[] memory amounts = new uint256[](1);
+      bytes memory userData = abi.encode(0);
+      tokens[0] = _underlying;
+      amounts[0] = borrowDiff;
+      makingFlashWithdrawal = true;
+      IBVault(bVault).flashLoan(address(this), tokens, amounts, userData);
+      makingFlashWithdrawal = false;
+      _redeem(amount);
     }
   }
 
