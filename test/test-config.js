@@ -11,7 +11,7 @@ module.exports = {
   "VaultImplementationV2": "0x350856A672e7bF7D7327c8a5e72Ac49833DBfB75",
   "CommunityMsig": "0xf3D1A027E858976634F81B7c41B09A05A46EdA21",
   "ProfitShare": "0x5F11EfDF4422B548007Cae9919b0b38c35fa6BE7",
-  "Reader": "0xD5E42f45CC4ef59dE83999FAAd1bef25A7abf657",
+  "Reader": "0x7b8b8F7e97935bD5d72f8bF82BEF8d9566C15065",
   "Incentives": {
     "GlobalIncentivesExecutor": "0x9d052Ab5344F6D0a5dcf685D42906f48E6F2beaF",
     "GlobalIncentivesHelper": "0x8F0d40c95047c6B09f08905C110d002E65e96C7d",
