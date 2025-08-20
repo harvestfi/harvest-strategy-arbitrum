@@ -9,8 +9,6 @@ import "../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../../base/interface/IERC4626.sol";
 import "../../base/interface/silo/ISilo.sol";
 
-import "hardhat/console.sol";
-
 contract SiloLendStrategy is BaseUpgradeableStrategy {
 
   using SafeMath for uint256;
