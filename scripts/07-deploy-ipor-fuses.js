@@ -14,9 +14,11 @@ async function main() {
 
   const balanceFuse = await type2Transaction(BlanceFuseContr.new, id);
   console.log("Balance Fuse deployed at:", balanceFuse.creates);
+  await new Promise(r => setTimeout(r, 2000))
 
   const supplyFuse = await type2Transaction(SupplyFuseContr.new, id);
   console.log("Supply Fuse deployed at:", supplyFuse.creates);
+  await new Promise(r => setTimeout(r, 2000))
 
   console.log("Deployment complete.");
 }
