@@ -22,4 +22,12 @@ contract FluidLendStrategyMainnet_USDC is FluidLendStrategy {
       weth
     );
   }
+
+  function finalizeUpgrade() override external onlyGovernance {
+    address arb = address(0x912CE59144191C1204E64559FE8253a0e49E6548);
+    _setRewardToken(arb);
+    rewardTokens = [arb];
+    distributionTime[arb] = 86400;
+    _finalizeUpgrade();
+  }
 }
