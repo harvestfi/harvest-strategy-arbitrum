@@ -27,11 +27,19 @@ contract AaveSupplyStrategy is BaseUpgradeableStrategy {
     assert(_PENDING_FEE_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.pendingFee")) - 1));
   }
 
+  address[] public rewardTokens;
+
+  mapping(address => uint256) public rewardBalanceLast;
+  mapping(address => uint256) public lastRewardTime;
+  mapping(address => uint256) public rewardPerSec;
+  mapping(address => uint256) public distributionTime;
+
   function initializeBaseStrategy(
     address _storage,
     address _underlying,
     address _vault,
-    address _aToken
+    address _aToken,
+    address _rewardToken
   )
   public initializer {
     BaseUpgradeableStrategy.initialize(
@@ -39,7 +47,7 @@ contract AaveSupplyStrategy is BaseUpgradeableStrategy {
       _underlying,
       _vault,
       _aToken,
-      _underlying,
+      _rewardToken,
       harvestMSIG
     );
 
@@ -80,7 +88,7 @@ contract AaveSupplyStrategy is BaseUpgradeableStrategy {
   function _handleFee() internal {
     _accrueFee();
     uint256 fee = pendingFee();
-    if (fee > 1e2) {
+    if (fee > 1e3) {
       _redeem(fee);
       address _underlying = underlying();
       fee = Math.min(fee, IERC20(_underlying).balanceOf(address(this)));
@@ -138,11 +146,74 @@ contract AaveSupplyStrategy is BaseUpgradeableStrategy {
     _updateStoredSupplied();
   }
 
+  function addRewardToken(address _token) public onlyGovernance {
+    rewardTokens.push(_token);
+  }
+
+  function _liquidateRewards() internal {
+    if (!sell()) {
+      // Profits can be disabled for possible simplified and rapid exit
+      emit ProfitsNotCollected(sell(), false);
+      return;
+    }
+    address _rewardToken = rewardToken();
+    address _universalLiquidator = universalLiquidator();
+    for (uint256 i; i < rewardTokens.length; i++) {
+      address token = rewardTokens[i];
+      uint256 balance = IERC20(token).balanceOf(address(this));
+      if (balance > rewardBalanceLast[token] || rewardBalanceLast[token] == 0) {
+        _updateDist(balance, token);
+      }
+      balance = _getAmt(token);
+      if (balance > 0 && token != _rewardToken){
+        IERC20(token).safeApprove(_universalLiquidator, 0);
+        IERC20(token).safeApprove(_universalLiquidator, balance);
+        IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, balance, 1, address(this));
+      }
+    }
+    uint256 rewardBalance = IERC20(_rewardToken).balanceOf(address(this));
+    _notifyProfitInRewardToken(_rewardToken, rewardBalance);
+    uint256 remainingRewardBalance = IERC20(_rewardToken).balanceOf(address(this));
+
+    if (remainingRewardBalance <= 1e12) {
+      return;
+    }
+  
+    address _underlying = underlying();
+    if (_underlying != _rewardToken) {
+      IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
+      IERC20(_rewardToken).safeApprove(_universalLiquidator, remainingRewardBalance);
+      IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, _underlying, remainingRewardBalance, 1, address(this));
+    }
+  }
+
+  function _updateDist(uint256 balance, address token) internal {
+    rewardBalanceLast[token] = balance;
+    if (distributionTime[token] > 0) {
+      lastRewardTime[token] = lastRewardTime[token] < block.timestamp.sub(distributionTime[token]) ? 
+        block.timestamp.sub(distributionTime[token].div(20)) : lastRewardTime[token];
+      rewardPerSec[token] = balance.div(distributionTime[token]);
+    }
+  }
+
+  function _getAmt(address token) internal returns (uint256) {
+    uint256 balance = IERC20(token).balanceOf(address(this));
+    if (distributionTime[token] == 0) {
+      return balance;
+    }
+    uint256 earned = Math.min(block.timestamp.sub(lastRewardTime[token]).mul(rewardPerSec[token]), balance);
+    rewardBalanceLast[token] = balance.sub(earned);
+    lastRewardTime[token] = block.timestamp;
+    return earned;
+  }
+
   /**
   * Withdraws all assets, liquidates XVS, and invests again in the required ratio.
   */
   function doHardWork() public restricted {
     _handleFee();
+    _claimGeneralIncentives();
+    _liquidateRewards();
     _supply(IERC20(underlying()).balanceOf(address(this)));
     _updateStoredSupplied();
   }
@@ -202,7 +273,7 @@ contract AaveSupplyStrategy is BaseUpgradeableStrategy {
     return getAddress(_ATOKEN_SLOT);
   }
 
-  function finalizeUpgrade() external onlyGovernance {
+  function finalizeUpgrade() virtual external onlyGovernance {
     _finalizeUpgrade();
   }
 
