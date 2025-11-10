@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.26;
 
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./interface/IERC4626.sol";
 import "./VaultV1.sol";
 
@@ -22,7 +23,9 @@ contract VaultV2 is IERC4626, VaultV1 {
     }
 
     function assetsOf(address _depositor) public view override returns (uint256) {
-        return totalAssets() * balanceOf(_depositor) / totalSupply();
+        uint256 s = totalSupply();
+        if (s == 0) return 0;
+        return totalAssets() * balanceOf(_depositor) / s;
     }
 
     function maxDeposit(address /*caller*/) public pure override returns (uint256) {
@@ -43,11 +46,11 @@ contract VaultV2 is IERC4626, VaultV1 {
     }
 
     function previewMint(uint256 _shares) public view override returns (uint256) {
-        return convertToAssets(_shares);
+        return _convertToAssetsUp(_shares);
     }
 
     function mint(uint256 _shares, address _receiver) public override nonReentrant defense returns (uint256) {
-        uint assets = convertToAssets(_shares);
+        uint assets = _convertToAssetsUp(_shares);
         _deposit(assets, msg.sender, _receiver);
         return assets;
     }
@@ -57,7 +60,7 @@ contract VaultV2 is IERC4626, VaultV1 {
     }
 
     function previewWithdraw(uint256 _assets) public view override returns (uint256) {
-        return convertToShares(_assets);
+        return _convertToSharesUp(_assets);
     }
 
     function withdraw(
@@ -69,7 +72,7 @@ contract VaultV2 is IERC4626, VaultV1 {
     nonReentrant
     defense
     returns (uint256) {
-        uint256 shares = convertToShares(_assets);
+        uint256 shares = _convertToSharesUp(_assets);
         _withdraw(shares, _receiver, _owner);
         return shares;
     }
@@ -107,5 +110,23 @@ contract VaultV2 is IERC4626, VaultV1 {
         return totalAssets() == 0 || totalSupply() == 0
             ? _assets * (TEN ** decimals()) / (TEN ** ERC20Upgradeable(underlying()).decimals())
             : _assets * totalSupply() / totalAssets();
+    }
+
+    // ========================= Round-UP helpers =============================
+    // Used by previewMint/mint and previewWithdraw/withdraw
+    function _convertToAssetsUp(uint256 _shares) internal view returns (uint256) {
+        uint256 s = totalSupply();
+        if (s == 0) {
+            return Math.mulDiv(_shares, TEN ** ERC20Upgradeable(underlying()).decimals(), TEN ** decimals(), Math.Rounding.Up);
+        }
+        return Math.mulDiv(_shares, totalAssets(), s, Math.Rounding.Up);
+    }
+
+    function _convertToSharesUp(uint256 _assets) internal view returns (uint256) {
+        uint256 s = totalSupply();
+        if (s == 0) {
+            return Math.mulDiv(_assets, TEN ** decimals(), TEN ** ERC20Upgradeable(underlying()).decimals(), Math.Rounding.Up);
+        }
+        return Math.mulDiv(_assets, s, totalAssets(), Math.Rounding.Up);
     }
 }
