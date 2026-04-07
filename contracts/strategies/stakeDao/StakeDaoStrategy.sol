@@ -9,13 +9,8 @@ import "../../base/interface/IUniversalLiquidator.sol";
 import "../../base/interface/IERC4626.sol";
 import "../../base/interface/stakeDao/IStakeVault.sol";
 import "../../base/interface/stakeDao/IAccountant.sol";
-import "../../base/interface/curve/ICurveDeposit_2token.sol";
 import "../../base/interface/curve/ICurveDeposit_3token.sol";
-import "../../base/interface/curve/ICurveDeposit_3token_meta.sol";
-import "../../base/interface/curve/ICurveDeposit_4token.sol";
-import "../../base/interface/curve/ICurveDeposit_4token_meta.sol";
 import "../../base/interface/curve/ICurveDeposit_ng.sol";
-import "../../base/interface/weth/IWETH.sol";
 
 contract StakeDaoStrategy is BaseUpgradeableStrategy {
     using SafeMath for uint256;
@@ -101,11 +96,15 @@ contract StakeDaoStrategy is BaseUpgradeableStrategy {
 
         address _lpt = IERC4626(_rewardPool).asset();
         require(_lpt == underlying(), "Pool Info does not match underlying");
+        require(_depositToken != weth, "WETH deposit unsupported");
         require(
             _depositArrayPosition < _nTokens,
             "Deposit array position out of bounds"
         );
-        require(1 < _nTokens && _nTokens < 5, "_nTokens should be 2, 3 or 4");
+        require(
+            (_metaPool && _nTokens == 2) || (!_metaPool && _nTokens == 3),
+            "Unsupported Curve deposit config"
+        );
         _setDepositArrayPosition(_depositArrayPosition);
         _setDepositToken(_depositToken);
         _setCurveDeposit(_curveDeposit);
@@ -242,60 +241,32 @@ contract StakeDaoStrategy is BaseUpgradeableStrategy {
     function depositCurve() internal {
         address _depositToken = depositToken();
         address _curveDeposit = curveDeposit();
-
         uint256 tokenBalance = IERC20(_depositToken).balanceOf(address(this));
+        uint256 _depositArrayPosition = depositArrayPosition();
+        uint256 _nTokens = nTokens();
 
-        if (_depositToken != weth) {
-            IERC20(_depositToken).safeApprove(_curveDeposit, 1);
-            if (tokenBalance > 1) {
-                IERC20(_depositToken).safeIncreaseAllowance(
-                    _curveDeposit,
-                    tokenBalance - 1
-                );
-            }
+        IERC20(_depositToken).safeApprove(_curveDeposit, 1);
+        if (tokenBalance > 1) {
+            IERC20(_depositToken).safeIncreaseAllowance(
+                _curveDeposit,
+                tokenBalance - 1
+            );
         }
 
         uint256 minimum = 1;
-        uint256 _nTokens = nTokens();
         if (metaPool()) {
-            uint256[] memory depositArray = new uint256[](_nTokens);
-            depositArray[depositArrayPosition()] = tokenBalance;
-            if (_depositToken == weth) {
-                IWETH(weth).withdraw(tokenBalance);
-                ICurveDeposit_ng(_curveDeposit).add_liquidity{
-                    value: tokenBalance
-                }(depositArray, minimum);
-            } else {
-                ICurveDeposit_ng(_curveDeposit).add_liquidity(
-                    depositArray,
-                    minimum
-                );
-            }
-        } else if (_nTokens == 2) {
-            uint256[2] memory depositArray;
-            depositArray[depositArrayPosition()] = tokenBalance;
-            if (_depositToken == weth) {
-                IWETH(weth).withdraw(tokenBalance);
-                ICurveDeposit_2token(_curveDeposit).add_liquidity{
-                    value: tokenBalance
-                }(depositArray, minimum);
-            } else {
-                ICurveDeposit_2token(_curveDeposit).add_liquidity(
-                    depositArray,
-                    minimum
-                );
-            }
-        } else if (_nTokens == 3) {
-            uint256[3] memory depositArray;
-            depositArray[depositArrayPosition()] = tokenBalance;
-            ICurveDeposit_3token(_curveDeposit).add_liquidity(
+            require(_nTokens == 2, "Only 2-token metapools supported");
+            uint256[] memory depositArray = new uint256[](2);
+            depositArray[_depositArrayPosition] = tokenBalance;
+            ICurveDeposit_ng(_curveDeposit).add_liquidity(
                 depositArray,
                 minimum
             );
-        } else if (_nTokens == 4) {
-            uint256[4] memory depositArray;
-            depositArray[depositArrayPosition()] = tokenBalance;
-            ICurveDeposit_4token(_curveDeposit).add_liquidity(
+        } else {
+            require(_nTokens == 3, "Only 3-token pools supported");
+            uint256[3] memory depositArray;
+            depositArray[_depositArrayPosition] = tokenBalance;
+            ICurveDeposit_3token(_curveDeposit).add_liquidity(
                 depositArray,
                 minimum
             );
@@ -454,6 +425,4 @@ contract StakeDaoStrategy is BaseUpgradeableStrategy {
     function finalizeUpgrade() external onlyGovernance {
         _finalizeUpgrade();
     }
-
-    receive() external payable {}
 }
