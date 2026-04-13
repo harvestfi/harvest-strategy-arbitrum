@@ -14,7 +14,7 @@ contract StakeDAOLendStrategy is BaseUpgradeableStrategy {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    address public constant harvestMSIG = address(0xF49440C1F012d041802b25A73e5B0B9166a75c02);
+    address public constant harvestMSIG = address(0xf3D1A027E858976634F81B7c41B09A05A46EdA21);
 
     bytes32 internal constant _LENDING_VAULT_SLOT =
         0x8b86aeb97224511570debab032f96aaf5e60e935a719498681731f3bbfad60da;
