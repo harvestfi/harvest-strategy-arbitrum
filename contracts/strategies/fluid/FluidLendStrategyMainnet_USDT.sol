@@ -24,10 +24,10 @@ contract FluidLendStrategyMainnet_USDT is FluidLendStrategy {
   }
 
   function finalizeUpgrade() override external onlyGovernance {
-    address arb = address(0x912CE59144191C1204E64559FE8253a0e49E6548);
-    _setRewardToken(arb);
-    rewardTokens = [arb];
-    distributionTime[arb] = 86400;
+    address fluid = address(0x61E030A56D33e8260FdD81f03B162A79Fe3449Cd);
+    _setRewardToken(fluid);
+    rewardTokens = [fluid];
+    distributionTime[fluid] = 0;
     _finalizeUpgrade();
   }
 }
