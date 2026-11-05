@@ -24,11 +24,8 @@ describe("Base Mainnet Morpho Vault V2 Gauntlet USDC Balanced", function() {
 
   // external setup
   let underlyingWhale = "0xC84CE6998FBABccb2E4a1f34ce19634e800Bc9De";
-  let morphoWhale = "0xA3D843B6a057504284006BeF6F34A2E9Bc80Fb6b";
-  let morpho = "0x40BD670A58238e6E230c430BBb5cE6ec0d40df48";
   let arbWhale = "0xf7F468B184A48f6ca37EeFFE12733Ee1c16B6E26";
   let arb = "0x912CE59144191C1204E64559FE8253a0e49E6548";
-  let morphoToken;
   let arbToken;
 
   // parties in the protocol
@@ -46,14 +43,12 @@ describe("Base Mainnet Morpho Vault V2 Gauntlet USDC Balanced", function() {
   async function setupExternalContracts() {
     underlying = await IERC20.at("0xaf88d065e77c8cC2239327C5EDb3A432268e5831");
     console.log("Fetching Underlying at: ", underlying.address);
-    morphoToken = await IERC20.at(morpho);
     arbToken = await IERC20.at(arb);
   }
 
   async function setupBalance(){
     let etherGiver = accounts[9];
     await web3.eth.sendTransaction({ from: etherGiver, to: underlyingWhale, value: 10e18});
-    await web3.eth.sendTransaction({ from: etherGiver, to: morphoWhale, value: 10e18});
     await web3.eth.sendTransaction({ from: etherGiver, to: arbWhale, value: 10e18});
 
     farmerBalance = await underlying.balanceOf(underlyingWhale);
@@ -67,7 +62,7 @@ describe("Base Mainnet Morpho Vault V2 Gauntlet USDC Balanced", function() {
     farmer1 = accounts[1];
 
     // impersonate accounts
-    await impersonates([governance, underlyingWhale, morphoWhale, arbWhale]);
+    await impersonates([governance, underlyingWhale, arbWhale]);
 
     let etherGiver = accounts[9];
     await web3.eth.sendTransaction({ from: etherGiver, to: governance, value: 10e18});
@@ -103,7 +98,6 @@ describe("Base Mainnet Morpho Vault V2 Gauntlet USDC Balanced", function() {
         console.log("loop ", i);
 
         if (i % 3 == 0) {
-          await morphoToken.transfer(strategy.address, new BigNumber(1e18), {from: morphoWhale});
           await arbToken.transfer(strategy.address, new BigNumber(10e18), {from: arbWhale});
         }
         
