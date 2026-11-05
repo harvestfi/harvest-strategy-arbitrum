@@ -53,3 +53,18 @@ dai_test: {
 ======
 Deployment complete. Add the JSON above to `harvest-api` (https://github.com/harvest-finance/harvest-api/blob/master/data/mainnet/addresses.json) repo and add entries to `tokens.js` and `pools.js`.
 ```
+
+### Upgrade the live Morpho V2 strategies
+
+Deploys new implementations for the three live Morpho Vault V2 strategies (Gauntlet Balanced V2, Gauntlet Prime V2, Steakhouse High Yield V2) and writes the Safe Transaction Builder files for governance. It only deploys: the proxies are not touched until the Safe sends the transactions. The plan itself lives in `scripts/morpho-v2-upgrade-plan.js`, and `test/morpho/v2/upgrade-rehearsal.js` runs that same plan on a fork.
+
+```
+npx hardhat run ./scripts/12-prepare-morpho-v2-upgrade.js --network hardhat
+npx hardhat run ./scripts/12-prepare-morpho-v2-upgrade.js --network mainnet
+```
+
+On `--network hardhat` it is a dry run against the fork. The three strategies have to exist at the fork block, so set `blockNumber` in `hardhat.config.js` to a recent one first (521420000 or later). Options (environment variables): `ONLY=GC,GP` to limit the run, `GC_IMPL` / `GP_IMPL` / `SHHY_IMPL` to reuse an implementation instead of deploying one, `VERIFY_REUSED=1` to verify a reused one again, `OUT` for where the files go (default `./safe-transactions`).
+
+Governance then executes, as the Safe: `morpho-v2-upgrade-1-schedule.json`, and strictly after the 12h timelock `morpho-v2-upgrade-2-upgrade.json`. To go back, `morpho-v2-upgrade-rollback-schedule.json`, then the second file again after another 12h. `upgrade()` installs whatever is scheduled, so check `nextImplementation()` on each proxy before signing the second file.
+
+The upgrade drops MORPHO from the reward tokens of the three strategies. Until it has run, MORPHO sent to one of them blocks that vault's deposits and withdrawals; the stopgap is `strategy.salvage(recipient, MORPHO, balance)` from the Safe on that strategy (`Controller.salvageStrategy` does not reach it).
