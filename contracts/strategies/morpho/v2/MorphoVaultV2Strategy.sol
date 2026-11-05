@@ -3,9 +3,11 @@ pragma solidity 0.8.26;
 
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "../../../base/interface/IUniversalLiquidator.sol";
 import "../../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../../../base/interface/morpho/IMorphoVault.sol";
+import "../../../base/interface/morpho/IMorphoVaultV2.sol";
 
 contract MorphoVaultV2Strategy is BaseUpgradeableStrategy {
 
@@ -32,6 +34,8 @@ contract MorphoVaultV2Strategy is BaseUpgradeableStrategy {
   }
 
   mapping(address => Stream) internal _stream;
+
+  event ForcedWithdrawal(uint256 withdrawn, uint256 penalty);
 
   constructor() BaseUpgradeableStrategy() {
     assert(_MORPHO_VAULT_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.morphoVault")) - 1));
@@ -97,19 +101,26 @@ contract MorphoVaultV2Strategy is BaseUpgradeableStrategy {
   function _handleFee() internal {
     _accrueFee();
     uint256 fee = pendingFee();
-    if (fee > feeFloor()) {
+    uint256 floor = feeFloor();
+    if (fee > floor) {
       address _underlying = underlying();
       uint256 availableBalance = IERC20(_underlying).balanceOf(address(this));
       if (availableBalance < fee) {
         // Only ask the Morpho vault for the shortfall, and never for more than the position
-        // is actually worth right now.
+        // is actually worth right now. That is not the same as what the vault can pay: a
+        // Vault V2 serves withdrawals from its idle balance and its liquidity adapter only,
+        // and reports `maxWithdraw` as zero whatever it holds, so there is nothing to size
+        // the request against. If it cannot pay, the fee waits for a later call rather than
+        // taking the hard work down with it.
         uint256 redeemable = Math.min(fee - availableBalance, currentSupplied());
         if (redeemable > 0) {
-          _redeem(redeemable);
+          try IMorphoVault(morphoVault()).withdraw(redeemable, address(this), address(this)) {} catch {}
         }
       }
       fee = Math.min(fee, IERC20(_underlying).balanceOf(address(this)));
-      if (fee == 0) {
+      // The RewardForwarder swaps the fee as it receives it, so a part payment has to clear
+      // the floor just as the whole fee does.
+      if (fee <= floor) {
         return;
       }
       uint256 balanceIncrease = fee * feeDenominator() / totalFeeNumerator();
@@ -153,6 +164,80 @@ contract MorphoVaultV2Strategy is BaseUpgradeableStrategy {
     _updateStoredSupplied();
   }
 
+  /**
+  * A withdrawal for when the Morpho vault cannot pay one. A Vault V2 pays out of its idle
+  * balance, topped up from its liquidity adapter if it has one; whatever else it holds has
+  * to be deallocated first. `forceDeallocate` lets any depositor do that, for a penalty the
+  * Morpho vault takes out of that depositor's shares. This deallocates what it is told to
+  * and withdraws in the same call, before anyone else can get to what it paid to free, and
+  * sends the proceeds to the vault.
+  *
+  * `adapters`, `data` and `assets` are what to deallocate, entry by entry. `data` is whatever
+  * the adapter expects: the abi-encoded market parameters for a market adapter, nothing for
+  * a vault adapter. The penalty is charged on everything deallocated, and anything freed
+  * beyond what is withdrawn here is left idle for other depositors, so size the entries to
+  * the withdrawal. A market can only give back what is not lent out.
+  *
+  * `amountUnderlying` is how much to send to the vault. It is cut down to what the position
+  * is worth net of the pending fee, and to what the Morpho vault holds idle once the
+  * deallocations are done - the liquidity adapter is not drawn on - so the maximum takes
+  * everything that can be had. `maxPenalty` is the most underlying the deallocations are
+  * allowed to cost.
+  *
+  * The next hard work supplies whatever the vault invests again, so if the funds are to
+  * stay out, lower the fraction the vault invests first.
+  */
+  function forceWithdrawToVault(
+    address[] calldata adapters,
+    bytes[] calldata data,
+    uint256[] calldata assets,
+    uint256 amountUnderlying,
+    uint256 maxPenalty
+  ) external onlyGovernance {
+    _accrueFee();
+    uint256 penalty = _forceDeallocate(adapters, data, assets);
+    require(penalty <= maxPenalty, "Penalty too high");
+    uint256 withdrawn = _redeemIdle(amountUnderlying);
+    _updateStoredSupplied();
+    emit ForcedWithdrawal(withdrawn, penalty);
+  }
+
+  function _forceDeallocate(
+    address[] calldata adapters,
+    bytes[] calldata data,
+    uint256[] calldata assets
+  ) internal returns (uint256 penalty) {
+    require(adapters.length == data.length && adapters.length == assets.length, "Length mismatch");
+    address _morphoVault = morphoVault();
+    uint256 supplied = currentSupplied();
+    for (uint256 i; i < adapters.length; i++) {
+      IMorphoVaultV2(_morphoVault).forceDeallocate(adapters[i], data[i], assets[i], address(this));
+    }
+    // The penalty is taken in shares, so it shows up as a smaller position.
+    uint256 suppliedAfter = currentSupplied();
+    penalty = supplied > suppliedAfter ? supplied - suppliedAfter : 0;
+  }
+
+  /**
+  * Withdraws up to `amountUnderlying` out of what the Morpho vault holds idle and sends it
+  * to the vault.
+  */
+  function _redeemIdle(uint256 amountUnderlying) internal returns (uint256 toVault) {
+    address _underlying = underlying();
+    uint256 supplied = currentSupplied();
+    uint256 idle = IERC20(_underlying).balanceOf(morphoVault());
+    uint256 fee = Math.min(pendingFee(), supplied);
+    toVault = Math.min(Math.min(supplied - fee, amountUnderlying), idle);
+    // The fee comes out as well if the Morpho vault can spare it, and waits here for the
+    // next hard work. Left supplied it would go on earning, and that is a position a later
+    // exit would have to get out of a vault that may have nothing to pay it with.
+    uint256 toKeep = Math.min(fee, idle - toVault);
+    _redeem(toVault + toKeep);
+    if (toVault > 0) {
+      IERC20(_underlying).safeTransfer(vault(), toVault);
+    }
+  }
+
   function withdrawToVault(uint256 amountUnderlying) public restricted {
     _accrueFee();
     address _underlying = underlying();
@@ -178,6 +263,22 @@ contract MorphoVaultV2Strategy is BaseUpgradeableStrategy {
     rewardTokens.push(_token);
   }
 
+  function _removeRewardToken(address _token) internal {
+    uint256 length = rewardTokens.length;
+    for (uint256 i; i < length; i++) {
+      if (rewardTokens[i] == _token) {
+        rewardTokens[i] = rewardTokens[length - 1];
+        rewardTokens.pop();
+        delete _stream[_token];
+        return;
+      }
+    }
+  }
+
+  function setSell(bool s) public onlyGovernance {
+    _setSell(s);
+  }
+
   function _liquidateRewards() internal {
     if (!sell()) {
       // Profits can be disabled for possible simplified and rapid exit
@@ -191,7 +292,7 @@ contract MorphoVaultV2Strategy is BaseUpgradeableStrategy {
       if (token == _rewardToken) continue;
       _syncRewardStream(token);
       uint256 toSell = _pullClaimable(token);
-      if (toSell > 0){
+      if (toSell > _minSellAmount(token)) {
         IERC20(token).safeApprove(_universalLiquidator, 0);
         IERC20(token).safeApprove(_universalLiquidator, toSell);
         IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, toSell, 1, address(this));
@@ -211,6 +312,17 @@ contract MorphoVaultV2Strategy is BaseUpgradeableStrategy {
       IERC20(_rewardToken).safeApprove(_universalLiquidator, remainingRewardBalance);
       IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, _underlying, remainingRewardBalance, 1, address(this));
     }
+  }
+
+  /**
+  * The smallest amount of a reward token worth handing to the liquidator: a millionth of a
+  * whole token. Less than that can come out of the swap as nothing, which reverts it. What
+  * is held back is not lost - it is no longer accounted for, so `_syncRewardStream` picks
+  * it up as newly arrived on the next hard work.
+  */
+  function _minSellAmount(address token) internal view returns (uint256) {
+    uint256 decimals = IERC20Metadata(token).decimals();
+    return decimals > 6 ? 10 ** (decimals - 6) : 0;
   }
 
   function distributionTime(address token) public view returns (uint256) {
@@ -389,7 +501,14 @@ contract MorphoVaultV2Strategy is BaseUpgradeableStrategy {
     uint256 supplied = currentSupplied();
     uint256 fee = pendingFee();
     if (supplied > fee) {
-      _redeem(supplied - fee);
+      uint256 toRedeem = supplied - fee;
+      if (toRedeem > feeFloor()) {
+        _redeem(toRedeem);
+      } else {
+        // Dust is not worth failing an exit over. If the Morpho vault cannot pay even
+        // that, it stays behind.
+        try IMorphoVault(morphoVault()).withdraw(toRedeem, address(this), address(this)) {} catch {}
+      }
     }
   }
 
